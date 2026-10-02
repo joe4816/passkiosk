@@ -5,13 +5,10 @@
  *   1. Rename the real browser-facing implementations in Code.gs with a
  *      trailing underscore (for example getFrontDoorConfig_).
  *   2. Keep this file alongside Code.gs.
- *   3. The legacy Apps Script Index.html can keep calling its ORIGINAL
- *      function names; the compatibility wrappers below require a signed-in
- *      CCSD account before delegating.
- *   4. The GitHub kiosk uses kioskRpc(), which requires the private kiosk key.
- *
- * This means the existing Apps Script Index.html does NOT need to be edited
- * during the security migration.
+ *   3. Normal staff sessions use the authenticated CCSD Google account as the
+ *      PassKiosk identity. Staff do NOT choose or type their identity.
+ *   4. The dedicated managed kiosk may use the kiosk key path because kiosk
+ *      mode has no ordinary signed-in Google user.
  */
 
 /* ========================================================================== */
@@ -19,13 +16,33 @@
 /* ========================================================================== */
 
 function staffRpc(fn, args) {
-  requireCcsdStaff_();
-  return dispatchPassKioskRpc_(fn, args);
+  const adult = requireActiveCcsdAdult_();
+  const method = String(fn || '');
+  const a = Array.isArray(args) ? args.slice() : [];
+
+  // Identity comes from the authenticated Google account, never client input.
+  if (method === 'getAuthenticatedProfile' || method === 'identifyAdult') {
+    return authenticatedAdultPayload_(adult);
+  }
+
+  // The legacy/current clients still pass a username as argument zero.
+  // Ignore it for staff sessions and force the authenticated adult instead.
+  if (method === 'startSession') {
+    a[0] = adult.username;
+  }
+
+  return dispatchPassKioskRpc_(method, a);
 }
 
 function kioskRpc(key, fn, args) {
   validateKioskBridgeKey_(key);
-  return dispatchPassKioskRpc_(fn, args);
+  const method = String(fn || '');
+
+  if (method === 'getAuthenticatedProfile') {
+    throw new Error('Authenticated Google profile is not available in kiosk mode.');
+  }
+
+  return dispatchPassKioskRpc_(method, args);
 }
 
 function dispatchPassKioskRpc_(fn, args) {
@@ -52,8 +69,8 @@ function dispatchPassKioskRpc_(fn, args) {
 /* ========================================================================== */
 /*
  * These public names intentionally match the current production Index.html.
- * Every path passes through staffRpc(), so an anonymous visitor to a future
- * kiosk deployment cannot use these wrappers.
+ * Every path passes through staffRpc(), so the signed-in CCSD account remains
+ * authoritative even if the old UI still renders a username field.
  */
 
 function getFrontDoorConfig() {
@@ -104,12 +121,35 @@ function reprintJob(token, deviceId, printJobId) {
 /* AUTHORIZATION                                                              */
 /* ========================================================================== */
 
-function requireCcsdStaff_() {
+function requireCcsdStaffEmail_() {
   const email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
   if (!/@nv\.ccsd\.net$/.test(email)) {
-    throw new Error('CCSD sign-in is required for this PassKiosk interface.');
+    throw new Error('CCSD sign-in is required for PassKiosk.');
   }
   return email;
+}
+
+function requireActiveCcsdAdult_() {
+  const email = requireCcsdStaffEmail_();
+  const username = normalizeUsername_(email);
+  const adult = getActiveAdultByUsername_(username);
+
+  if (!adult) {
+    throw new Error('Your CCSD account is not active in PassKiosk.');
+  }
+
+  return adult;
+}
+
+function authenticatedAdultPayload_(adult) {
+  return {
+    ok: true,
+    username: adult.username,
+    displayName: adult.displayName,
+    role: adult.role,
+    defaultLocation: adult.defaultLocation,
+    sig: adult.sig
+  };
 }
 
 function validateKioskBridgeKey_(provided) {

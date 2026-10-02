@@ -6,5 +6,5 @@ window.PASSKIOSK_CONFIG = Object.freeze({
   // Managed ChromeOS configuration is preferred for kiosk mode.
   // One-time fallback provisioning may use the URL fragment:
   // #bridge=<deployment-url>&kiosk=<secret>
-  bridgeUrl: ''
+  bridgeUrl: 'https://script.google.com/a/macros/nv.ccsd.net/s/AKfycbxdaUwaVYjkjcQP1keD9RSUn1K2buIAoNLlpEyA0e40spIyXB7u2YuCLksOPu5oMzBsLA/exec'
 });

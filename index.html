@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#5d2da1">
+  <meta name="color-scheme" content="light">
+  <title>PassKiosk</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/passkiosk-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="vendor/jsQR.js"></script>
+  <script defer src="config.js"></script>
+  <script defer src="bridge.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+<div id="front" class="screen">
+    <div class="front-card">
+      <div class="brand">PassKiosk</div>
+      <div class="muted">Ernest A. Becker Sr. Middle School</div>
+      <div id="identifyPane">
+        <div class="front-title">Who are you?</div>
+        <input id="usernameInput" class="front-input" autocomplete="off" autocapitalize="characters" placeholder="CCSD username" onkeydown="if(event.key==='Enter') identifyUser()">
+        <div class="submit-row"><button class="primary" onclick="identifyUser()">Continue</button></div>
+      </div>
+      <div id="printerPane" class="hidden">
+        <div class="welcome"><span id="welcomeText">Welcome</span><button class="recycle" title="Change user" onclick="resetFrontDoor()">🔄</button></div>
+        <div class="front-title">Where do you want to print?</div>
+        <div id="frontPrinters"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="screen hidden">
+    <div class="topbar">
+      <div class="nav">
+        <button data-lane="PASS" onclick="selectLane('PASS')">Pass</button>
+        <button data-lane="RQST" onclick="selectLane('RQST')">Rqst🧑‍🎓</button>
+        <button data-lane="DET" onclick="selectLane('DET')">Det</button>
+        <button data-lane="LUNCH_DET" onclick="selectLane('LUNCH_DET')">🥪Det</button>
+        <button data-lane="BUS" onclick="selectLane('BUS')">🚌</button>
+        <button data-lane="SETTINGS" onclick="selectLane('SETTINGS')">⚙️</button>
+      </div>
+      <div class="context-strip"><span id="contextUser"></span><span id="contextPrinter"></span></div>
+    </div>
+    <div class="wrap"><div id="workspace" class="pick-lane">↑ Pick a lane</div></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <div id="confirmModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-title">Resend print job?</div>
+      <div id="confirmText"></div>
+      <div class="submit-row"><button class="secondary" onclick="closeConfirm()">Cancel</button><button class="primary" onclick="confirmReprint()">Send</button></div>
+    </div>
+  </div>
+
+  <div id="cameraModal" class="modal camera-modal hidden">
+    <div class="camera-card">
+      <div class="camera-head"><strong>Scan Student QR</strong><button class="camera-done" onclick="closeCamera()">Done</button></div>
+      <video id="cameraVideo" playsinline muted></video>
+      <canvas id="cameraCanvas" class="hidden"></canvas>
+      <div class="camera-foot"><span id="cameraStatus">Point the camera at the student QR code.</span><span id="cameraCount"></span></div>
+    </div>
+  </div>
+</body>
+</html>

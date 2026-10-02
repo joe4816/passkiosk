@@ -10,6 +10,8 @@
   const CALL_TIMEOUT_MS = 30000;
 
   let iframe = null;
+  let bridgeWindow = null;
+  let bridgeOrigin = '';
   let readyPromise = null;
   let readyResolve = null;
   let readyReject = null;
@@ -86,6 +88,17 @@
     return u.toString();
   }
 
+  function isAllowedBridgeOrigin(origin) {
+    try {
+      const u = new URL(origin);
+      if (u.protocol !== 'https:') return false;
+      return u.hostname === 'script.google.com' ||
+             u.hostname.endsWith('.googleusercontent.com');
+    } catch (_) {
+      return false;
+    }
+  }
+
   function boot() {
     if (readyPromise) return readyPromise;
 
@@ -122,16 +135,25 @@
   }
 
   window.addEventListener('message', event => {
-    if (!iframe || event.source !== iframe.contentWindow) return;
     const msg = event.data || {};
     if (msg.channel !== CHANNEL) return;
 
     if (msg.type === 'ready') {
+      if (!isAllowedBridgeOrigin(event.origin)) return;
+
+      // Apps Script HtmlService runs the actual Bridge.html inside a
+      // googleusercontent frame. Remember that exact inner window and origin;
+      // iframe.contentWindow is only the outer Apps Script container.
+      bridgeWindow = event.source;
+      bridgeOrigin = event.origin;
+
       if (readyResolve) readyResolve(true);
       return;
     }
 
     if (msg.type !== 'result' || !msg.id) return;
+    if (!bridgeWindow || event.source !== bridgeWindow || event.origin !== bridgeOrigin) return;
+
     const waiter = pending.get(msg.id);
     if (!waiter) return;
     pending.delete(msg.id);
@@ -145,7 +167,12 @@
     await boot();
     const settings = await getSettings();
 
+    if (!bridgeWindow || !bridgeOrigin) {
+      throw new Error('PassKiosk backend bridge is not ready.');
+    }
+
     const id = `rpc-${Date.now()}-${++seq}`;
+
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
@@ -153,14 +180,15 @@
       }, CALL_TIMEOUT_MS);
 
       pending.set(id, { resolve, reject, timer });
-      iframe.contentWindow.postMessage({
+
+      bridgeWindow.postMessage({
         channel: CHANNEL,
         type: 'call',
         id,
         key: settings.kioskKey,
         fn,
         args
-      }, '*');
+      }, bridgeOrigin);
     });
   }
 
@@ -175,5 +203,10 @@
     settingsPromise = null;
   }
 
-  window.PassKioskBridge = Object.freeze({ ready: boot, call, mode, clearAuthorization });
+  window.PassKioskBridge = Object.freeze({
+    ready: boot,
+    call,
+    mode,
+    clearAuthorization
+  });
 })();

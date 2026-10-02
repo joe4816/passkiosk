@@ -5,7 +5,10 @@ const SHELL = [
   './styles.css',
   './config.js',
   './bridge.js',
-  './app.js',
+  './js/app-core.js',
+  './js/app-pass-request.js',
+  './js/app-detention-settings.js',
+  './js/app-camera-utils.js',
   './manifest.webmanifest',
   './assets/passkiosk-icon.svg',
   './vendor/jsQR.js'

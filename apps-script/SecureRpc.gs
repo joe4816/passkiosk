@@ -1,16 +1,25 @@
 /**
  * PassKiosk browser RPC boundary.
  *
- * Add this file to the bound PassKiosk Apps Script project during migration.
- * The real workflow implementations in Code.gs must be renamed with a
- * trailing underscore so they cannot be called directly with google.script.run.
+ * Production migration model:
+ *   1. Rename the real browser-facing implementations in Code.gs with a
+ *      trailing underscore (for example getFrontDoorConfig_).
+ *   2. Keep this file alongside Code.gs.
+ *   3. The legacy Apps Script Index.html can keep calling its ORIGINAL
+ *      function names; the compatibility wrappers below require a signed-in
+ *      CCSD account before delegating.
+ *   4. The GitHub kiosk uses kioskRpc(), which requires the private kiosk key.
+ *
+ * This means the existing Apps Script Index.html does NOT need to be edited
+ * during the security migration.
  */
 
+/* ========================================================================== */
+/* STAFF / KIOSK RPC                                                          */
+/* ========================================================================== */
+
 function staffRpc(fn, args) {
-  const email = String(Session.getActiveUser().getEmail() || '').toLowerCase();
-  if (!/@nv\.ccsd\.net$/.test(email)) {
-    throw new Error('CCSD sign-in is required for this PassKiosk interface.');
-  }
+  requireCcsdStaff_();
   return dispatchPassKioskRpc_(fn, args);
 }
 
@@ -36,6 +45,71 @@ function dispatchPassKioskRpc_(fn, args) {
     case 'reprintJob': return reprintJob_(...a);
     default: throw new Error('PassKiosk RPC method is not allowed.');
   }
+}
+
+/* ========================================================================== */
+/* LEGACY APPS SCRIPT UI COMPATIBILITY                                        */
+/* ========================================================================== */
+/*
+ * These public names intentionally match the current production Index.html.
+ * Every path passes through staffRpc(), so an anonymous visitor to a future
+ * kiosk deployment cannot use these wrappers.
+ */
+
+function getFrontDoorConfig() {
+  return staffRpc('getFrontDoorConfig', []);
+}
+
+function identifyAdult(usernameInput) {
+  return staffRpc('identifyAdult', [usernameInput]);
+}
+
+function startSession(usernameInput, printerKey, deviceId) {
+  return staffRpc('startSession', [usernameInput, printerKey, deviceId]);
+}
+
+function signOut(token) {
+  return staffRpc('signOut', [token]);
+}
+
+function changePrinter(token, printerKey) {
+  return staffRpc('changePrinter', [token, printerKey]);
+}
+
+function getBootstrapData(token) {
+  return staffRpc('getBootstrapData', [token]);
+}
+
+function getStudentDetails(token, studentId) {
+  return staffRpc('getStudentDetails', [token, studentId]);
+}
+
+function getDetentionAvailability(token, detentionType, studentId) {
+  return staffRpc('getDetentionAvailability', [token, detentionType, studentId]);
+}
+
+function submitWorkflow(token, request) {
+  return staffRpc('submitWorkflow', [token, request]);
+}
+
+function getRecentPrintJobs(token, deviceId) {
+  return staffRpc('getRecentPrintJobs', [token, deviceId]);
+}
+
+function reprintJob(token, deviceId, printJobId) {
+  return staffRpc('reprintJob', [token, deviceId, printJobId]);
+}
+
+/* ========================================================================== */
+/* AUTHORIZATION                                                              */
+/* ========================================================================== */
+
+function requireCcsdStaff_() {
+  const email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
+  if (!/@nv\.ccsd\.net$/.test(email)) {
+    throw new Error('CCSD sign-in is required for this PassKiosk interface.');
+  }
+  return email;
 }
 
 function validateKioskBridgeKey_(provided) {

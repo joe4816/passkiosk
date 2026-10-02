@@ -31,6 +31,15 @@ The bridge uses a secure RPC boundary:
 
 Do not create a public/anonymous Apps Script kiosk deployment until this private-function/RPC refactor has been installed and tested.
 
+
+## Staff identity
+
+For ordinary staff access, Google Workspace authentication is the identity source. The backend reads the signed-in `@nv.ccsd.net` account, converts it to the CCSD username, and resolves that username against the active Adults configuration.
+
+The staff front door therefore does **not** ask “Who are you?” after Google sign-in. It shows the resolved profile and proceeds to printer selection. The backend also forces `startSession` to use the authenticated adult rather than trusting a client-supplied username.
+
+The dedicated managed kiosk authorization path remains separate because ChromeOS kiosk mode does not provide an ordinary signed-in Google user session.
+
 ## Printing
 
 Printing remains a separate concern from transaction creation.

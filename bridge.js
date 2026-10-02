@@ -18,9 +18,6 @@
   const pending = new Map();
 
   function consumeLaunchSettings() {
-    // Provisioning fallback only. URL fragments are not sent to GitHub's web
-    // server. On a managed ChromeOS kiosk, Admin managed configuration is
-    // preferred so no secret needs to be placed in the launch URL.
     const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
     if (!hash) return;
 
@@ -45,7 +42,6 @@
       const value = await navigator.managed.getManagedConfiguration(MANAGED_KEYS);
       return value && typeof value === 'object' ? value : {};
     } catch (_) {
-      // Normal outside a managed ChromeOS app context. Fall back below.
       return {};
     }
   }
@@ -57,18 +53,23 @@
       consumeLaunchSettings();
       const managed = await getManagedSettings();
 
+      const bridgeUrl = String(
+        managed.PassKioskBridgeUrl ||
+        localStorage.getItem(STORAGE_KEY_URL) ||
+        CONFIG.bridgeUrl ||
+        ''
+      ).trim();
+
+      const kioskKey = String(
+        managed.PassKioskKioskKey ||
+        localStorage.getItem(STORAGE_KEY_SECRET) ||
+        ''
+      ).trim();
+
       return {
-        bridgeUrl: String(
-          managed.PassKioskBridgeUrl ||
-          localStorage.getItem(STORAGE_KEY_URL) ||
-          CONFIG.bridgeUrl ||
-          ''
-        ).trim(),
-        kioskKey: String(
-          managed.PassKioskKioskKey ||
-          localStorage.getItem(STORAGE_KEY_SECRET) ||
-          ''
-        ).trim(),
+        bridgeUrl,
+        kioskKey,
+        mode: kioskKey ? 'kiosk' : 'staff',
         managed: Boolean(managed.PassKioskBridgeUrl || managed.PassKioskKioskKey)
       };
     })();
@@ -96,11 +97,8 @@
     (async () => {
       try {
         const settings = await getSettings();
-        if (!settings.kioskKey) {
-          throw new Error('This device has not been authorized for PassKiosk yet.');
-        }
-
         const src = buildIframeUrl(settings.bridgeUrl);
+
         iframe = document.createElement('iframe');
         iframe.id = 'passkioskBackendBridge';
         iframe.src = src;
@@ -111,7 +109,7 @@
         document.body.appendChild(iframe);
 
         const timer = setTimeout(() => {
-          readyReject(new Error('PassKiosk backend did not respond. Check the kiosk bridge deployment and network connection.'));
+          readyReject(new Error('PassKiosk backend did not respond. Check the backend deployment and sign-in.'));
         }, READY_TIMEOUT_MS);
 
         readyPromise.then(() => clearTimeout(timer), () => clearTimeout(timer));
@@ -146,7 +144,6 @@
   async function call(fn, ...args) {
     await boot();
     const settings = await getSettings();
-    if (!settings.kioskKey) throw new Error('This device has not been authorized for PassKiosk yet.');
 
     const id = `rpc-${Date.now()}-${++seq}`;
     return new Promise((resolve, reject) => {
@@ -167,11 +164,16 @@
     });
   }
 
+  async function mode() {
+    const settings = await getSettings();
+    return settings.mode;
+  }
+
   function clearAuthorization() {
     localStorage.removeItem(STORAGE_KEY_URL);
     localStorage.removeItem(STORAGE_KEY_SECRET);
     settingsPromise = null;
   }
 
-  window.PassKioskBridge = Object.freeze({ ready: boot, call, clearAuthorization });
+  window.PassKioskBridge = Object.freeze({ ready: boot, call, mode, clearAuthorization });
 })();

@@ -10,13 +10,24 @@ The original Apps Script HTML page can call `google.script.run` directly. GitHub
 
 An auto-launch ChromeOS kiosk has no ordinary CCSD Google user session. The kiosk bridge therefore uses a separate random device authorization key stored in Apps Script Script Properties.
 
-The key is **not committed to GitHub** and is never placed in a GitHub Pages query string.
+The key is **not committed to GitHub**.
 
-At initial kiosk setup, use a URL fragment so the secret is not sent to GitHub's web server:
+### Preferred: ChromeOS managed configuration
+
+The GitHub client first checks the ChromeOS Web Managed Configuration API for:
+
+- `PassKioskBridgeUrl`
+- `PassKioskKioskKey`
+
+If Google Admin exposes **Managed configuration** for the deployed PassKiosk web app, configure those two values there. This is the preferred unattended-appliance path because the repository and public launch URL contain no kiosk secret.
+
+### Fallback provisioning
+
+Outside a managed ChromeOS configuration, a one-time URL fragment can seed browser storage without sending the secret to GitHub's server:
 
 `https://joe4816.github.io/passkiosk/#bridge=<encoded-apps-script-url>&kiosk=<random-key>`
 
-The page stores the bridge URL and key in that kiosk browser's local storage and immediately removes the fragment from the visible address bar.
+The page stores those fallback values locally and removes the fragment from the visible address bar. This fallback should be used only when managed configuration is unavailable.
 
 ## Secure Apps Script RPC
 

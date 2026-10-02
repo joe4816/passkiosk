@@ -22,13 +22,17 @@
     <div class="front-card">
       <div class="brand">PassKiosk</div>
       <div class="muted">Ernest A. Becker Sr. Middle School</div>
-      <div id="identifyPane">
+      <div id="identityLoadingPane">
+        <div class="front-title">Signing you in…</div>
+        <div class="muted">Checking your CCSD account.</div>
+      </div>
+      <div id="identifyPane" class="hidden">
         <div class="front-title">Who are you?</div>
         <input id="usernameInput" class="front-input" autocomplete="off" autocapitalize="characters" placeholder="CCSD username" onkeydown="if(event.key==='Enter') identifyUser()">
         <div class="submit-row"><button class="primary" onclick="identifyUser()">Continue</button></div>
       </div>
       <div id="printerPane" class="hidden">
-        <div class="welcome"><span id="welcomeText">Welcome</span><button class="recycle" title="Change user" onclick="resetFrontDoor()">🔄</button></div>
+        <div class="welcome"><span id="welcomeText">Welcome</span><button id="changeUserButton" class="recycle hidden" title="Change user" onclick="resetFrontDoor()">🔄</button></div>
         <div class="front-title">Where do you want to print?</div>
         <div id="frontPrinters"></div>
       </div>

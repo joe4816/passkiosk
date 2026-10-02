@@ -111,3 +111,9 @@ Before creating any deployment with unauthenticated access:
 10. Only then create the separate kiosk-bridge deployment.
 
 If step 4 fails because Apps Script returns a blank active-user email in the current deployment mode, stop before making anything public. The staff-authentication gate must be redesigned rather than removed.
+
+## After-school detention suggestion rule
+
+A detention configuration value of `Window (School Days) = 0` means **no scheduling restriction**, not “only consider the first future school day.”
+
+For automatic suggestions, PassKiosk should compare the next **three available active school days** when the configured window is 0, then suggest the date with the lowest assigned count (earliest date breaks a tie). Manual date selection remains unrestricted by the zero window value, subject only to active-day / duplicate rules and any nonzero daily capacity.

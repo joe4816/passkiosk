@@ -18,10 +18,19 @@
     const msg = event.data || {};
     if (msg.channel !== CHANNEL || msg.type !== 'call' || !msg.id) return;
 
-    google.script.run
+    const runner = google.script.run
       .withSuccessHandler(value => reply(event.source, msg.id, true, value, null))
-      .withFailureHandler(err => reply(event.source, msg.id, false, null, err && err.message ? err.message : String(err)))
-      .kioskRpc(String(msg.key || ''), String(msg.fn || ''), Array.isArray(msg.args) ? msg.args : []);
+      .withFailureHandler(err => reply(event.source, msg.id, false, null, err && err.message ? err.message : String(err)));
+
+    const fn = String(msg.fn || '');
+    const args = Array.isArray(msg.args) ? msg.args : [];
+    const key = String(msg.key || '');
+
+    if (key) {
+      runner.kioskRpc(key, fn, args);
+    } else {
+      runner.staffRpc(fn, args);
+    }
   });
 
   parent.postMessage({ channel: CHANNEL, type: 'ready' }, PARENT_ORIGIN);

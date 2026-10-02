@@ -1,27 +1,75 @@
-const PK_BUILD='0.3.0-github';
-const state={front:null,identified:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,bulk:false,student:null,studentDetails:null,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',camera:{stream:null,raf:null,lastCode:'',lastAt:0}};
+const PK_BUILD='0.3.1-github';
+const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,bulk:false,student:null,studentDetails:null,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',camera:{stream:null,raf:null,lastCode:'',lastAt:0}};
 document.addEventListener('DOMContentLoaded',init);
 
 async function init(){
   state.deviceId=getDeviceId();
   try{
+    state.authMode=await PassKioskBridge.mode();
     await PassKioskBridge.ready();
     state.front=await server('getFrontDoorConfig');
+
+    if(state.authMode==='staff'){
+      const profile=await server('getAuthenticatedProfile');
+      if(!profile||!profile.ok)throw new Error('Your CCSD account could not be identified in PassKiosk.');
+      state.identified=profile;
+      showPrinterSelection(false);
+    }else{
+      showKioskIdentityPrompt();
+    }
   }catch(err){
-    toast(err.message||'PassKiosk backend is not available.',true,7000);
+    showFrontDoorError(err.message||'PassKiosk backend is not available.');
   }
-  document.getElementById('usernameInput').focus();
 }
 function getDeviceId(){const k='PassKioskDeviceId';let id=localStorage.getItem(k);if(!id){id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'PKD-'+Date.now()+'-'+Math.random().toString(36).slice(2);localStorage.setItem(k,id)}return id}
 function server(fn,...args){return PassKioskBridge.call(fn,...args)}
 
+function showKioskIdentityPrompt(){
+  document.getElementById('identityLoadingPane').classList.add('hidden');
+  document.getElementById('printerPane').classList.add('hidden');
+  document.getElementById('identifyPane').classList.remove('hidden');
+  document.getElementById('changeUserButton').classList.add('hidden');
+  const input=document.getElementById('usernameInput');
+  input.value='';
+  input.focus();
+}
+function showPrinterSelection(allowChangeUser){
+  document.getElementById('identityLoadingPane').classList.add('hidden');
+  document.getElementById('identifyPane').classList.add('hidden');
+  document.getElementById('printerPane').classList.remove('hidden');
+  document.getElementById('welcomeText').textContent='Welcome '+state.identified.displayName;
+  document.getElementById('changeUserButton').classList.toggle('hidden',!allowChangeUser);
+  renderFrontPrinters();
+}
+function showFrontDoorError(message){
+  const pane=document.getElementById('identityLoadingPane');
+  pane.classList.remove('hidden');
+  document.getElementById('identifyPane').classList.add('hidden');
+  document.getElementById('printerPane').classList.add('hidden');
+  pane.innerHTML='<div class="front-title">PassKiosk could not sign you in.</div><div class="muted">'+esc(message)+'</div>';
+  toast(message,true,7000);
+}
+
 async function identifyUser(){
+  if(state.authMode!=='kiosk')return;
   const input=document.getElementById('usernameInput');clearInvalid(input);
-  try{const res=await server('identifyAdult',input.value);if(!res.ok)throw new Error(res.message||'User not found.');state.identified=res;document.getElementById('welcomeText').textContent='Welcome '+res.displayName;document.getElementById('identifyPane').classList.add('hidden');document.getElementById('printerPane').classList.remove('hidden');renderFrontPrinters()}catch(err){markInvalid(input);toast(err.message,true)}
+  try{
+    const res=await server('identifyAdult',input.value);
+    if(!res.ok)throw new Error(res.message||'User not found.');
+    state.identified=res;
+    showPrinterSelection(true);
+  }catch(err){
+    markInvalid(input);
+    toast(err.message,true);
+  }
 }
 function renderFrontPrinters(){const box=document.getElementById('frontPrinters'),remembered=localStorage.getItem('PassKioskLastPrinter:'+state.identified.username)||'';box.innerHTML='';(state.front.printers||[]).forEach(p=>{const b=document.createElement('button');b.className='printer-btn'+(p.key===remembered?' remembered':'');b.textContent=p.friendlyName;b.onclick=()=>enterPassKiosk(p.key);box.appendChild(b)})}
 async function enterPassKiosk(printerKey){try{const res=await server('startSession',state.identified.username,printerKey,state.deviceId);state.token=res.token;state.currentPrinter=res.printer;localStorage.setItem('PassKioskLastPrinter:'+state.identified.username,printerKey);state.bootstrap=await server('getBootstrapData',state.token);state.session=state.bootstrap.session;initializeLaneValues();document.getElementById('front').classList.add('hidden');document.getElementById('app').classList.remove('hidden');updateContext();selectLane(null)}catch(err){toast(err.message,true)}}
-function resetFrontDoor(){state.identified=null;document.getElementById('usernameInput').value='';document.getElementById('identifyPane').classList.remove('hidden');document.getElementById('printerPane').classList.add('hidden');document.getElementById('usernameInput').focus()}
+function resetFrontDoor(){
+  if(state.authMode!=='kiosk')return;
+  state.identified=null;
+  showKioskIdentityPrompt();
+}
 function initializeLaneValues(){const me=state.session.username,loc=state.session.defaultLocation||'';state.laneValues={PASS:{from:loc},RQST:{destination:loc,requestedByUsername:me},DET:{issuedByUsername:me,reportTo:state.bootstrap.detention.afterSchool.defaultLocation||''},LUNCH_DET:{issuedByUsername:me,reportTo:state.bootstrap.detention.lunch.defaultLocation||''},BUS:{approvedByUsername:me}}}
 function updateContext(){const a=state.bootstrap.adults.find(x=>x.username===state.session.username);document.getElementById('contextUser').textContent=a?a.displayName:state.session.displayName;document.getElementById('contextPrinter').textContent=state.currentPrinter?state.currentPrinter.friendlyName:''}
 

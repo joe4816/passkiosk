@@ -32,6 +32,12 @@ All implementation functions exposed through the browser boundary should be priv
 
 Only the explicit wrappers `staffRpc` and `kioskRpc` should dispatch browser requests. The implementation is maintained in `apps-script/SecureRpc.gs`.
 
+## Staff identity
+
+For normal staff access, the signed-in CCSD Google account is authoritative. Client-supplied usernames are not trusted for session identity.
+
+`staffRpc` requires an `@nv.ccsd.net` account, resolves that account to an active Adults row, and forces session creation to use that resolved username. A signed-in staff member cannot select another staff identity simply by changing client input.
+
 ## Kiosk key
 
 The unattended ChromeOS kiosk uses a high-entropy bearer key stored in Apps Script Script Properties and provisioned only to the kiosk browser.

@@ -70,7 +70,7 @@ jobs:
               'vendor/jsQR.js',
               'vendor/jsQR.LICENSE.txt',
               'apps-script/Bridge.html',
-              'apps-script/KioskBridge.gs',
+              'apps-script/SecureRpc.gs',
           ]
           absent = [p for p in required if not (root / p).exists()]
           if absent:

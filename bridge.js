@@ -16,17 +16,18 @@
   const pending = new Map();
 
   function consumeLaunchSettings() {
-    const url = new URL(window.location.href);
-    const bridge = String(url.searchParams.get('bridge') || '').trim();
-    const secret = String(url.searchParams.get('kiosk') || '').trim();
+    // Secrets belong in the URL fragment, never the query string. Fragments are
+    // not sent to GitHub Pages or upstream web servers.
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+    const fragment = new URLSearchParams(hash);
+    const bridge = String(fragment.get('bridge') || '').trim();
+    const secret = String(fragment.get('kiosk') || '').trim();
 
     if (bridge) localStorage.setItem(STORAGE_KEY_URL, bridge);
     if (secret) localStorage.setItem(STORAGE_KEY_SECRET, secret);
 
     if (bridge || secret) {
-      url.searchParams.delete('bridge');
-      url.searchParams.delete('kiosk');
-      history.replaceState(null, document.title, url.pathname + (url.search ? url.search : '') + url.hash);
+      history.replaceState(null, document.title, window.location.pathname + window.location.search);
     }
   }
 
@@ -39,17 +40,11 @@
   }
 
   function buildIframeUrl() {
-    const { bridgeUrl, kioskKey } = getSettings();
-    if (!bridgeUrl) {
-      throw new Error('PassKiosk backend bridge is not configured yet.');
-    }
-    if (!kioskKey) {
-      throw new Error('This device has not been authorized for PassKiosk yet.');
-    }
+    const { bridgeUrl } = getSettings();
+    if (!bridgeUrl) throw new Error('PassKiosk backend bridge is not configured yet.');
 
     const u = new URL(bridgeUrl);
     u.searchParams.set('bridge', '1');
-    u.searchParams.set('k', kioskKey);
     u.searchParams.set('v', CONFIG.version || 'github');
     return u.toString();
   }
@@ -61,6 +56,12 @@
       readyResolve = resolve;
       readyReject = reject;
     });
+
+    const { kioskKey } = getSettings();
+    if (!kioskKey) {
+      readyReject(new Error('This device has not been authorized for PassKiosk yet.'));
+      return readyPromise;
+    }
 
     let src;
     try {
@@ -109,8 +110,10 @@
 
   async function call(fn, ...args) {
     await boot();
-    const id = `rpc-${Date.now()}-${++seq}`;
+    const { kioskKey } = getSettings();
+    if (!kioskKey) throw new Error('This device has not been authorized for PassKiosk yet.');
 
+    const id = `rpc-${Date.now()}-${++seq}`;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
@@ -122,6 +125,7 @@
         channel: CHANNEL,
         type: 'call',
         id,
+        key: kioskKey,
         fn,
         args
       }, '*');
@@ -133,9 +137,5 @@
     localStorage.removeItem(STORAGE_KEY_SECRET);
   }
 
-  window.PassKioskBridge = Object.freeze({
-    ready: boot,
-    call,
-    clearAuthorization
-  });
+  window.PassKioskBridge = Object.freeze({ ready: boot, call, clearAuthorization });
 })();

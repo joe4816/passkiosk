@@ -30,7 +30,7 @@ Google Apps Script remains the authority for:
 
 All implementation functions exposed through the browser boundary should be private Apps Script functions ending in `_`. Google documents that private functions cannot be called with `google.script.run`.
 
-Only the explicit wrappers `staffRpc` and `kioskRpc` should dispatch browser requests. The implementation is maintained in `apps-script/SecureRpc.gs`.
+The secure dispatch boundary is `staffRpc` / `kioskRpc`. Legacy public function-name wrappers may remain temporarily for the current Apps Script UI, but they must delegate immediately to `staffRpc` and must never trust a client-supplied staff identity. The implementation is maintained in `apps-script/SecureRpc.gs`.
 
 ## Staff identity
 

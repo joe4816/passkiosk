@@ -1,0 +1,80 @@
+name: Validate PassKiosk
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check bridge.js
+          node --check config.js
+          node --check sw.js
+          node --check js/app-core.js
+          node --check js/app-pass-request.js
+          node --check js/app-detention-settings.js
+          node --check js/app-camera-utils.js
+
+      - name: Validate manifest and referenced static files
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          from html.parser import HTMLParser
+
+          root = pathlib.Path('.')
+          json.loads((root / 'manifest.webmanifest').read_text())
+
+          class Refs(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.refs = []
+              def handle_starttag(self, tag, attrs):
+                  d = dict(attrs)
+                  if tag == 'script' and d.get('src'):
+                      self.refs.append(d['src'])
+                  if tag == 'link' and d.get('href'):
+                      self.refs.append(d['href'])
+
+          parser = Refs()
+          parser.feed((root / 'index.html').read_text())
+
+          missing = []
+          for ref in parser.refs:
+              if '://' in ref or ref.startswith('data:'):
+                  continue
+              path = root / ref.lstrip('./')
+              if not path.exists():
+                  missing.append(ref)
+
+          if missing:
+              raise SystemExit('Missing index.html references: ' + ', '.join(missing))
+
+          required = [
+              'index.html',
+              'styles.css',
+              'bridge.js',
+              'config.js',
+              'sw.js',
+              'manifest.webmanifest',
+              'vendor/jsQR.js',
+              'vendor/jsQR.LICENSE.txt',
+              'apps-script/Bridge.html',
+              'apps-script/KioskBridge.gs',
+          ]
+          absent = [p for p in required if not (root / p).exists()]
+          if absent:
+              raise SystemExit('Missing required files: ' + ', '.join(absent))
+
+          print('Static validation passed.')
+          PY

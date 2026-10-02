@@ -76,11 +76,13 @@ Once the GitHub Pages site and secure Apps Script kiosk bridge are operational:
 
 1. Add `https://joe4816.github.io/passkiosk/` as the PassGen kiosk web app.
 2. Verify the actual app origin is not redirected.
-3. Select PassKiosk as the **Auto-launch app**.
-4. Perform a cold reboot test.
-5. Verify camera scanning in the actual kiosk session.
-6. Verify the kiosk reconnects to managed Wi-Fi without a user login.
-7. Verify Sunday scheduled reboot returns to PassKiosk automatically.
+3. Configure the PassKiosk **Managed configuration** values described in [MANAGED_CONFIG.md](MANAGED_CONFIG.md).
+4. Add the final Apps Script bridge origin under **Additional URL origins for this kiosk app**.
+5. Select PassKiosk as the **Auto-launch app**.
+6. Perform a cold reboot test.
+7. Verify camera scanning in the actual kiosk session.
+8. Verify the kiosk reconnects to managed Wi-Fi without a user login.
+9. Verify Sunday scheduled reboot returns to PassKiosk automatically.
 
 ## Printing
 

@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head><base target="_top"><meta charset="utf-8"></head>
+<body>
+<script>
+(() => {
+  'use strict';
+
+  const CHANNEL = 'PASSKIOSK_RPC_V1';
+  const PARENT_ORIGIN = 'https://joe4816.github.io';
+  const ALLOWED = new Set([
+    'getFrontDoorConfig',
+    'identifyAdult',
+    'startSession',
+    'signOut',
+    'changePrinter',
+    'getBootstrapData',
+    'getStudentDetails',
+    'getDetentionAvailability',
+    'submitWorkflow',
+    'getRecentPrintJobs',
+    'reprintJob'
+  ]);
+
+  function reply(target, id, ok, value, error) {
+    target.postMessage({ channel: CHANNEL, type: 'result', id, ok, value, error }, PARENT_ORIGIN);
+  }
+
+  window.addEventListener('message', event => {
+    if (event.origin !== PARENT_ORIGIN) return;
+    const msg = event.data || {};
+    if (msg.channel !== CHANNEL || msg.type !== 'call' || !msg.id) return;
+
+    const fn = String(msg.fn || '');
+    if (!ALLOWED.has(fn)) {
+      reply(event.source, msg.id, false, null, 'Backend function is not allowed through the kiosk bridge.');
+      return;
+    }
+
+    const args = Array.isArray(msg.args) ? msg.args : [];
+    const runner = google.script.run
+      .withSuccessHandler(value => reply(event.source, msg.id, true, value, null))
+      .withFailureHandler(err => reply(event.source, msg.id, false, null, err && err.message ? err.message : String(err)));
+
+    runner[fn](...args);
+  });
+
+  parent.postMessage({ channel: CHANNEL, type: 'ready' }, PARENT_ORIGIN);
+})();
+</script>
+</body>
+</html>

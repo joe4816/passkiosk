@@ -20,7 +20,11 @@ Planned permanent kiosk URL:
 
 `https://joe4816.github.io/passkiosk/`
 
-GitHub Pages still needs to be enabled for `main / root` before this URL becomes live.
+GitHub Pages is enabled and publishing from `main / (root)`.
+
+## Staff identity
+
+For normal staff use, the signed-in CCSD Google account is the PassKiosk identity; the GitHub client does not ask the staff member to type a username again.
 
 ## Current migration status
 

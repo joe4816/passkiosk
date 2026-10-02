@@ -1,0 +1,18 @@
+{
+  "name": "PassKiosk",
+  "short_name": "PassKiosk",
+  "description": "Becker Middle School pass and detention kiosk",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f5fa",
+  "theme_color": "#5d2da1",
+  "icons": [
+    {
+      "src": "assets/passkiosk-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

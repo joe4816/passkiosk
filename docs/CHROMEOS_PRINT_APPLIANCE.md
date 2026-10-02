@@ -1,25 +1,22 @@
 # PassKiosk ChromeOS Print Appliance
 
-## Architecture decision
+## Current architecture decision
 
-Mirror the final working Badgie Chromebook deployment pattern rather than inventing a Windows print worker.
+Use the existing **ChromeOS kiosk-mode** setup for the dedicated PassGen Chromebook.
 
-The dedicated PassGen Chromebook is intended to be an untouched appliance:
+The PassGen Chromebook is intended to be an untouched print appliance:
 - ChromeOS managed device in the `PassGen` OU.
-- Use a **Managed Guest Session (MGS)** that auto-launches, matching the final Badgie deployment pattern.
+- Auto-launch the PassKiosk print-appliance web app in kiosk mode.
 - No normal user sign-in is required on the appliance.
 - Managed printers are assigned at the device / OU level.
-- Silent printing and exact/default printer policy should be configured through Chrome Admin, following the Badgie pattern.
+- A companion managed Chrome extension may use the ChromeOS-only `chrome.printing` API to enumerate/select installed printers and submit jobs without relying on the default printer.
 - The appliance page/helper will consume PassKiosk print jobs and print them unattended.
-- The separate Apps Script worker endpoint and private worker/kiosk credentials remain backend plumbing; do not move the print worker to the AutomationHub PC unless explicitly re-decided.
+- Do not move the print worker to the AutomationHub PC unless explicitly re-decided.
 
-## Badgie reference pattern
+## Why this differs from Badgie
 
-The final Badgie configuration used:
-- Managed Guest Session enabled and auto-launched.
-- Badgie web app launched inside the session.
-- Badgie Helper extension force-installed and exempted from MGS cleanup.
-- Silent printing enabled.
-- Exact default printer policy for the managed Kyocera.
+Badgie used a more locked-down session because students could physically interact with that device. PassGen will sit out of harm's way, so the existing kiosk-mode deployment is acceptable and preferred for the first implementation.
 
-PassKiosk should reproduce this architecture with the `PassGen` OU and PassKiosk-specific app/helper configuration.
+## Authentication
+
+The kiosk has no ordinary signed-in CCSD user. It uses the private `PASSKIOSK_KIOSK_KEY` through managed web-app configuration. The public Apps Script worker/bridge deployment is only the transport; kiosk RPC still validates the kiosk key.

@@ -36,7 +36,7 @@ Before creating a public kiosk-bridge deployment, the current browser-callable A
 - `staffRpc(fn, args)` — checks that the active Google user is in `nv.ccsd.net`.
 - `kioskRpc(key, fn, args)` — validates the kiosk key stored in Script Properties.
 
-`apps-script/KioskBridge.gs` contains the dispatcher and exact function list.
+`apps-script/SecureRpc.gs` contains the dispatcher and exact function list.
 
 The current Apps Script `Index.html` should change its `server()` adapter to call `staffRpc`, while the GitHub bridge calls `kioskRpc`.
 
@@ -51,5 +51,5 @@ If district policy does not permit an unauthenticated deployment, stop and redes
 ## Files
 
 - `apps-script/Bridge.html` — hidden iframe relay
-- `apps-script/KioskBridge.gs` — secure staff/kiosk RPC wrappers and dispatcher
+- `apps-script/SecureRpc.gs` — secure staff/kiosk RPC wrappers and dispatcher
 - `bridge.js` — GitHub-side iframe RPC client

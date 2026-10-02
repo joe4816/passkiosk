@@ -62,24 +62,13 @@ They remain runnable manually from the Apps Script editor but are not exposed to
 
 This is particularly important for `generatePrintWorkerKey`: leaving it browser-callable would allow a public web-app visitor to rotate the print-worker secret.
 
-## 5. Update the legacy Apps Script Index adapter
+## 5. Legacy Apps Script Index.html
 
-The current Apps Script-hosted UI can remain available during migration.
+No change is required.
 
-Find its `server(fn,...args)` helper and replace the direct dynamic call with:
+`SecureRpc.gs` now provides compatibility wrappers with the exact public function names the current Apps Script UI already calls. Each wrapper verifies that the active user is signed into the CCSD domain, then delegates to the private implementation.
 
-```javascript
-function server(fn, ...args) {
-  return new Promise((resolve, reject) => {
-    google.script.run
-      .withSuccessHandler(resolve)
-      .withFailureHandler(e => reject(new Error(e && e.message ? e.message : String(e))))
-      .staffRpc(fn, args);
-  });
-}
-```
-
-Everything else in the legacy Apps Script UI can remain unchanged.
+This avoids touching the currently working `Index.html` during the backend security migration.
 
 ## 6. Optional print-worker health check
 
@@ -107,7 +96,7 @@ Before creating any deployment with unauthenticated access:
 1. Save all Apps Script files.
 2. Run `testPassKioskConfig_` from the editor; it must complete.
 3. Open the existing CCSD-restricted deployment.
-4. Verify `staffRpc` can see the signed-in CCSD account.
+4. Verify a legacy UI call succeeds for the signed-in CCSD account.
 5. Enter a known active username and reach printer selection.
 6. Create one harmless test Pass and confirm a transaction + queued print job.
 7. Verify calling an old direct function name from the client is no longer possible.

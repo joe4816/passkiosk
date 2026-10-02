@@ -62,13 +62,19 @@ They remain runnable manually from the Apps Script editor but are not exposed to
 
 This is particularly important for `generatePrintWorkerKey`: leaving it browser-callable would allow a public web-app visitor to rotate the print-worker secret.
 
-## 5. Legacy Apps Script Index.html
+## 5. Staff identity
 
-No change is required.
+The authenticated CCSD Google account is authoritative.
 
-`SecureRpc.gs` now provides compatibility wrappers with the exact public function names the current Apps Script UI already calls. Each wrapper verifies that the active user is signed into the CCSD domain, then delegates to the private implementation.
+For normal staff use, PassKiosk must not ask the user to type a username after Google has already authenticated them. `SecureRpc.gs` derives the username from `Session.getActiveUser().getEmail()`, looks that username up in the active Adults configuration, and returns the matching profile.
 
-This avoids touching the currently working `Index.html` during the backend security migration.
+The GitHub client then goes directly to:
+
+`Welcome <Display Name> → choose printer`
+
+If the signed-in CCSD account is not an active PassKiosk adult, access stops.
+
+The legacy Apps Script `Index.html` does not have to be edited during this migration. Its compatibility wrappers ignore any username supplied by the old UI and force the authenticated account instead. Once GitHub becomes the normal staff client, the redundant legacy username screen can be retired with the legacy UI.
 
 ## 6. Optional print-worker health check
 
@@ -97,10 +103,11 @@ Before creating any deployment with unauthenticated access:
 2. Run `testPassKioskConfig_` from the editor; it must complete.
 3. Open the existing CCSD-restricted deployment.
 4. Verify a legacy UI call succeeds for the signed-in CCSD account.
-5. Enter a known active username and reach printer selection.
-6. Create one harmless test Pass and confirm a transaction + queued print job.
-7. Verify calling an old direct function name from the client is no longer possible.
-8. Run `generateKioskBridgeKey_` once and store the returned value privately.
-9. Only then create the separate kiosk-bridge deployment.
+5. Confirm the backend resolves that Google account to the correct active Adults row.
+6. Confirm the GitHub client shows the correct display name automatically and goes directly to printer selection.
+7. Create one harmless test Pass and confirm a transaction + queued print job.
+8. Verify the authenticated staff session cannot start a PassKiosk session as a different username.
+9. Run `generateKioskBridgeKey_` once and store the returned value privately.
+10. Only then create the separate kiosk-bridge deployment.
 
 If step 4 fails because Apps Script returns a blank active-user email in the current deployment mode, stop before making anything public. The staff-authentication gate must be redesigned rather than removed.

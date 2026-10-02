@@ -20,12 +20,16 @@ The current Apps Script-hosted UI uses `google.script.run`. A GitHub-hosted page
 
 The planned migration keeps Apps Script as the backend and adds a minimal Apps Script bridge page. The GitHub page communicates with that bridge, and the bridge invokes the existing backend functions.
 
-The bridge should:
+The bridge uses a secure RPC boundary:
 
-- expose only an explicit allowlist of PassKiosk backend functions;
-- accept requests only from the PassKiosk GitHub Pages origin;
-- keep spreadsheet IDs, worker keys, credentials, student data, and other private operational data out of the public repository;
-- preserve the existing Apps Script backend until individual responsibilities are intentionally migrated.
+- real browser-facing implementations are renamed with a trailing underscore so Apps Script treats them as private;
+- `staffRpc(fn, args)` validates a signed-in `nv.ccsd.net` user for the CCSD-restricted Apps Script UI;
+- `kioskRpc(key, fn, args)` validates the unattended kiosk bearer key stored in Script Properties;
+- the bridge accepts messages only from the PassKiosk GitHub Pages origin;
+- only an explicit allowlist of PassKiosk methods can be dispatched;
+- spreadsheet IDs, worker keys, credentials, student data, and other private operational data stay out of the public repository.
+
+Do not create a public/anonymous Apps Script kiosk deployment until this private-function/RPC refactor has been installed and tested.
 
 ## Printing
 

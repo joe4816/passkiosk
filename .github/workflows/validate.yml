@@ -24,6 +24,10 @@ jobs:
           node --check js/app-pass-request.js
           node --check js/app-detention-settings.js
           node --check js/app-camera-utils.js
+          cp apps-script/SecureRpc.gs /tmp/SecureRpc.js
+          cp apps-script/BusIntegration.gs /tmp/BusIntegration.js
+          node --check /tmp/SecureRpc.js
+          node --check /tmp/BusIntegration.js
 
       - name: Validate manifest and referenced static files
         run: |
@@ -71,6 +75,7 @@ jobs:
               'vendor/jsQR.LICENSE.txt',
               'apps-script/Bridge.html',
               'apps-script/SecureRpc.gs',
+              'apps-script/BusIntegration.gs',
           ]
           absent = [p for p in required if not (root / p).exists()]
           if absent:

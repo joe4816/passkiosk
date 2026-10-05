@@ -47,7 +47,11 @@ Printing remains a separate concern from transaction creation.
 - A transaction is created once the submitted workflow is valid and the document snapshot is successfully built.
 - A physical print attempt is recorded separately in `Print_Jobs`.
 - Reprints create a new print job but do not create a duplicate transaction.
-- The local worker remains responsible for school-network printer access.
+- The canonical PassGen receipt path is PassKiosk -> PrintHub -> managed PassGen Chromebook -> exact Chrome runtime printer ID -> `chrome.printing` -> selected receipt printer -> automatic cut.
+- The ChromeOS bridge owns exact local-printer selection. PassKiosk must not store Chrome runtime printer IDs as application routes.
+- `window.print()` is only a diagnostic/default-printer fallback, not the production multi-printer path.
+- Do not introduce a Windows PC receipt relay unless that architecture is explicitly revisited.
+- Production PrintHub polling remains disabled until endpoint authentication and route-scoped claiming are installed and verified.
 
 ## Activity Bus
 

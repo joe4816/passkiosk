@@ -48,6 +48,20 @@ This deliberately permits a source row to preserve an additional morning assignm
 
 `Sped` is informational only. It is not transportation eligibility.
 
+## Source audit — 2026-10-04
+
+The live `Bus_Info` tab was checked against this contract before integration work continued:
+
+- 593 transportation rows;
+- 589 unique student IDs;
+- 586 students with one usable Bus From assignment;
+- 3 students with two usable Bus From assignments;
+- 1 source row with blank Bus From fields that belongs to a student who has another valid home assignment;
+- 0 duplicate usable Bus From rows;
+- 0 mismatches between the source `Bus From Assignment Count` and the number of usable assignments produced by the contract.
+
+This validates the decision to preserve multiple assignments and to ignore AM-only rows for Activity Bus rather than forcing one row per student.
+
 ## Lookup behavior
 
 The client calls:
@@ -161,7 +175,7 @@ Then run manually from the Apps Script editor:
 
 `testBusIntegration_()`
 
-The check must succeed before enabling the client feature flag. It verifies both the Bus_Info source headers and the required Activity Bus transaction headers.
+The check must succeed before enabling the client feature flag. It verifies the Bus_Info source headers and required Activity Bus transaction headers, then reports aggregate source-health counts including unique students, multiple assignments, blank Bus From rows, duplicate usable assignments, and source-count mismatches. It does not return student transportation records.
 
 ## Activation gate
 

@@ -1,4 +1,4 @@
-const PK_BUILD='0.3.1-github';
+const PK_BUILD='0.3.2-resilience';
 const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,bulk:false,student:null,studentDetails:null,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',submitting:false,camera:{stream:null,raf:null,lastCode:'',lastAt:0}};
 document.addEventListener('DOMContentLoaded',init);
 

@@ -267,10 +267,9 @@ function printHubEndpointPoll_(body) {
 
 function printHubEndpointComplete_(body) {
   const endpoint = requirePrintHubEndpoint_(body);
-  if (!printHubEndpointEnabled_()) {
-    throw new Error('PrintHub endpoint is disabled.');
-  }
 
+  // Completion remains available even when new polling is disabled so an
+  // already-submitted ChromeOS job can still close cleanly.
   assertPrintHubHeaders_();
 
   const printJobId = String(body && body.printJobId || '').trim();

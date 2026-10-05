@@ -323,18 +323,23 @@ async function confirmReprint(){const job=state.pendingReprint;if(!job)return;tr
 async function logout(){try{await server('signOut',state.token)}catch(_){ }location.reload()}
 
 async function submitLane(request){
-  if(state.submitting)return;
+  if(state.submitting)return toast('A submission is still in progress. Please wait.',true);
+  const context={epoch:state.busEpoch,lane:state.lane,token:state.token};
   state.submitting=true;
   const submitButtons=[...document.querySelectorAll('#workspace .submit-row .primary')];
   submitButtons.forEach(b=>{b.disabled=true;b.dataset.originalText=b.textContent;b.textContent='Sending…'});
   try{
     request.deviceId=state.deviceId;
-    const res=await server('submitWorkflow',state.token,request);
+    const res=await server('submitWorkflow',context.token,request);
+    if(!res||res.ok!==true||!Array.isArray(res.created)||!Array.isArray(res.errors)||
+        res.createdCount!==res.created.length||res.errorCount!==res.errors.length){
+      throw new Error('Submission response could not be verified.');
+    }
     if(res.errorCount)toast(`${res.createdCount} created; ${res.errorCount} require attention.`,true);
     else toast(`${res.createdCount} sent.`);
-    resetAfterSend();
+    if(state.busEpoch===context.epoch&&state.lane===context.lane&&state.token===context.token)resetAfterSend();
   }catch(err){
-    toast(err.message,true);
+    toast((err.message||'Submission was interrupted.')+' Recording is not confirmed; check Transactions before retrying.',true,7000);
   }finally{
     state.submitting=false;
     submitButtons.forEach(b=>{

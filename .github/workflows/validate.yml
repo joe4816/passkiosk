@@ -34,6 +34,8 @@ jobs:
           node tests/bus-bulk.test.cjs
           node tests/bus-reliability.test.cjs
           node tests/camera-choice.test.cjs
+          node tests/backend-migrations.test.cjs
+          node tests/workflow-reliability.test.cjs
 
       - name: Validate manifest and referenced static files
         run: |

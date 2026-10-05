@@ -23,3 +23,7 @@ Do not deploy the Apps Script project for unauthenticated access until the migra
 - intentionally creates no `Print_Jobs` row.
 
 Install it with the current `SecureRpc.gs`, run `testBusIntegration_()`, and follow `../docs/ACTIVITY_BUS.md` before enabling the public client feature gate.
+
+## Pending function replacements
+
+See `patches/README.md` for tested detention zero-window and explicit Excused patches. These replace named functions inside Code.gs; do not add them as duplicate function definitions. They remain staged, and client gates remain off pending live backend verification.

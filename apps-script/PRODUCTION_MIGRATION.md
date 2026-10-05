@@ -276,3 +276,7 @@ Then perform the non-printing smoke tests in `docs/ACTIVITY_BUS.md`.
 ## Activity Bus bulk revision — 2026-10-04
 
 The earlier single-student-only decision is superseded. Install the updated `BusIntegration.gs` before activating Activity Bus: `submitBusWorkflow` now accepts `{bulk: true, studentIds: [...], approvedByUsername, deviceId}` and returns the same batch counts/created/errors shape as other bulk workflows. It uses `makeProcessingErrorRow_` and `PK.ERRORS_SHEET` from Code.gs. Valid students receive separate transactions with a shared batch root; no-bus, unknown, and already-scanned students receive processing-error rows. Bulk never permits automatic duplicate override. No print jobs are generated. Follow the expanded bulk smoke tests in `docs/ACTIVITY_BUS.md`; keep `activityBusData: false` until the updated backend is deployed and verified.
+
+## Tested function replacements — 2026-10-05
+
+The exact replacement functions are staged in `patches/DetentionAvailability.gs` and `patches/PassExcused.gs`. Follow `patches/README.md`, compare current live Code.gs first, and replace only the named functions. The Excused patch includes an exact-header guard to prevent silent omission. These are not additive Apps Script modules and are not confirmed deployed. Synthetic tests run with `node tests/backend-migrations.test.cjs`; live backend and saved-sheet verification are still required.

@@ -41,8 +41,8 @@ async function renderBusStudentStatus(){
   if(!info||!Array.isArray(info.assignments)||!info.assignments.length){
     playBusAlertTone();
     box.className='bus-status bus-error';
-    box.innerHTML=`<strong>NO BUS INFO ON FILE</strong><br><span class="small">No usable Bus From assignment was found for ${esc(state.student.firstName)} ${esc(state.student.lastName)}.</span>`;
-    scheduleBusReset(3000);
+    box.innerHTML=`<strong>NO BUS INFO ON FILE</strong><br><span class="small">No usable Bus From assignment was found for ${esc(state.student.firstName)} ${esc(state.student.lastName)}.</span><div class="bus-countdown">Returning to scan in <strong id="busCountdown">3</strong>…</div>`;
+    startBusCountdown(3,resetBusLaneStudent,'NO BUS INFO ON FILE');
     return;
   }
 
@@ -50,7 +50,7 @@ async function renderBusStudentStatus(){
     playBusAlertTone();
     armBusDuplicateOverride(info);
     box.className='bus-status bus-warning';
-    box.innerHTML=`<strong>ALREADY SCANNED TODAY</strong><div class="small bus-instruction">Scan or select this same student again within 5 seconds to record a duplicate.</div>${busAssignmentsHtml(info.assignments)}${info.priorTransactionId?`<div class="small muted">Earlier transaction: ${esc(info.priorTransactionId)}</div>`:''}`;
+    box.innerHTML=`<strong>ALREADY SCANNED TODAY</strong><div class="small bus-instruction">Scan or select this same student again within <strong id="busCountdown">5</strong> seconds to record a duplicate.</div>${busAssignmentsHtml(info.assignments)}${info.priorTransactionId?`<div class="small muted">Earlier transaction: ${esc(info.priorTransactionId)}</div>`:''}`;
     return;
   }
 
@@ -85,14 +85,14 @@ async function submitBusPass(allowDuplicate){
         playBusAlertTone();
         armBusDuplicateOverride(info);
         box.className='bus-status bus-warning';
-        box.innerHTML=`<strong>ALREADY SCANNED TODAY</strong><div class="small bus-instruction">Scan or select this same student again within 5 seconds to record a duplicate.</div>${busAssignmentsHtml(info.assignments)}`;
+        box.innerHTML=`<strong>ALREADY SCANNED TODAY</strong><div class="small bus-instruction">Scan or select this same student again within <strong id="busCountdown">5</strong> seconds to record a duplicate.</div>${busAssignmentsHtml(info.assignments)}`;
         return;
       }
       if(res&&res.code==='NO_BUS_INFO'){
         playBusAlertTone();
         box.className='bus-status bus-error';
-        box.innerHTML='<strong>NO BUS INFO ON FILE</strong><br><span class="small">No usable Bus From assignment was found.</span>';
-        scheduleBusReset(3000);
+        box.innerHTML='<strong>NO BUS INFO ON FILE</strong><br><span class="small">No usable Bus From assignment was found.</span><div class="bus-countdown">Returning to scan in <strong id="busCountdown">3</strong>…</div>';
+        startBusCountdown(3,resetBusLaneStudent,'NO BUS INFO ON FILE');
         return;
       }
       throw new Error(res&&res.message?res.message:'Activity Bus transaction was not recorded.');
@@ -118,11 +118,10 @@ function armBusDuplicateOverride(info){
     priorTransactionId:String(info&&info.priorTransactionId||''),
     expiresAt:Date.now()+5000
   };
-  state.busResetTimer=setTimeout(()=>{
-    if(state.lane!=='BUS')return;
+  startBusCountdown(5,()=>{
     state.busOverride=null;
     resetBusLaneStudent();
-  },5000);
+  },'ALREADY SCANNED TODAY — rescan this student for DUPLICATE');
 }
 
 function busAssignmentsHtml(assignments){
@@ -140,6 +139,27 @@ function scheduleBusReset(ms){
 
 function clearBusResetTimer(){
   if(state.busResetTimer){clearTimeout(state.busResetTimer);state.busResetTimer=null}
+  if(state.busCountdownTimer){clearInterval(state.busCountdownTimer);state.busCountdownTimer=null}
+}
+
+function startBusCountdown(seconds,onExpire,cameraMessage){
+  clearBusResetTimer();
+  const end=Date.now()+seconds*1000;
+  const update=()=>{
+    const remaining=Math.max(0,Math.ceil((end-Date.now())/1000));
+    const el=document.getElementById('busCountdown');
+    if(el)el.textContent=String(remaining);
+    if(state.camera&&state.camera.stream&&state.lane==='BUS'){
+      const status=document.getElementById('cameraStatus');
+      if(status)status.textContent=(cameraMessage||'Activity Bus')+' · '+remaining+'s';
+    }
+  };
+  update();
+  state.busCountdownTimer=setInterval(update,200);
+  state.busResetTimer=setTimeout(()=>{
+    clearBusResetTimer();
+    if(typeof onExpire==='function')onExpire();
+  },seconds*1000+25);
 }
 
 function resetBusLaneStudent(){
@@ -150,6 +170,51 @@ function resetBusLaneStudent(){
   state.busOverride=null;
   state.busBusy=false;
   if(state.lane==='BUS')renderBus();
+  if(state.camera&&state.camera.stream){
+    const status=document.getElementById('cameraStatus');
+    if(status)status.textContent='Point the camera at the next student QR code.';
+  }
+}
+
+async function handleBusCameraStudent(student){
+  if(!activityBusEnabled()){
+    const status=document.getElementById('cameraStatus');
+    if(status)status.textContent='Activity Bus backend activation is still pending.';
+    return;
+  }
+
+  if(state.busBusy){
+    const status=document.getElementById('cameraStatus');
+    if(status)status.textContent='Still processing the previous Activity Bus scan…';
+    return;
+  }
+
+  if(state.busOverride){
+    if(state.busOverride.studentId===student.studentId&&Date.now()<=state.busOverride.expiresAt){
+      state.student=student;
+      state.studentDetails={};
+      updateSelectedStudentArea();
+      await submitBusPass(true);
+      return;
+    }
+    clearBusResetTimer();
+    state.busOverride=null;
+  }
+
+  state.student=student;
+  state.studentDetails={};
+  updateSelectedStudentArea();
+  await renderBusStudentStatus();
+
+  const status=document.getElementById('cameraStatus');
+  if(!status)return;
+
+  if(state.busOverride&&state.busOverride.studentId===student.studentId){
+    const remaining=Math.max(0,Math.ceil((state.busOverride.expiresAt-Date.now())/1000));
+    status.textContent='ALREADY SCANNED TODAY — remove QR, then rescan within '+remaining+'s for DUPLICATE.';
+  }else if(state.student&&state.busInfo&&Array.isArray(state.busInfo.assignments)&&state.busInfo.assignments.length){
+    status.textContent='Recorded '+student.firstName+' '+student.lastName+'. Remove QR, then scan the next student.';
+  }
 }
 
 function playBusAlertTone(){

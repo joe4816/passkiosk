@@ -200,7 +200,15 @@ Before enabling the browser feature:
    - one student with multiple Bus From assignments;
    - one student whose source has a row with blank Bus From fields.
 7. Verify no student data or spreadsheet IDs were added to the public GitHub repository.
-8. Set `PASSKIOSK_CONFIG.features.activityBusData` to `true`.
+8. Add these additive Transactions headers if they are not already present:
+   - `Bus Assignment Count`
+   - `Bus Scan Type`
+   - `Duplicate Of Transaction ID`
+   - `Bus Snapshot`
+9. Run `testBusIntegration_` from the Apps Script editor.
+10. Set `PASSKIOSK_CONFIG.features.activityBusData` to `true`.
+
+The existing `Bus Route(s)` and `Bus Drop-off(s)` transaction columns remain the human-readable summary fields. The four additive columns above preserve structured audit information, especially for multiple assignments and deliberate duplicate scans. Until those headers are added, duplicate provenance is also written into `Notes` as a compatibility fallback.
 
 The Activity Bus integration intentionally does **not** create a Print_Jobs row yet. It records the BUS transaction only. Printing can be attached later without changing the transportation lookup contract.
 

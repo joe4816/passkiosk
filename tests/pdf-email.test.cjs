@@ -64,9 +64,9 @@ for(const reason of ['quota','render']){
  const h=harness();h.setMailFailure(true);const r=h.c.submitEmailWorkflow_('t',req());assert.equal(r.emailDelivery.status,'SEND_UNCONFIRMED');assert.equal(r.emailDelivery.canRetry,false);
  h.setMailFailure(false);h.c.retryPdfEmail_('t','DEVICE',r.emailDelivery.deliveryId);assert.equal(h.mail.length,1);assert.equal(h.transactions.length,1);
 }
-// A blank optional Excused cell must not be presented as a recorded false.
+// Every pass PDF shows an Excused checkbox: checked only for a saved true.
 {
- const h=harness();for(const value of [true,false,'']){const fields=h.c.pdfEmailFields_({Workflow:'PASS',Excused:value},{sources:{}});const field=fields.find(x=>x[0]==='Excused');if(value==='')assert.equal(field,undefined);else assert.equal(field[1],value?'Yes':'No');}
+ const h=harness();for(const value of [true,false,'']){const fields=h.c.pdfEmailFields_({Workflow:'PASS',Excused:value},{sources:{}});const field=fields.find(x=>x[0]==='Excused');assert.ok(field);assert.equal(field[1],value===true?'☑':'☐');}
 }
 // Owner/device isolation, current-user recipient and persistent reservation.
 {

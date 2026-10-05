@@ -11,7 +11,7 @@ function activityBusEnabled(){return Boolean(window.PASSKIOSK_CONFIG&&window.PAS
 function renderBus(){
   const v=state.laneValues.BUS;
   const ready=activityBusEnabled();
-  document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:false})}<div class="card"><h2>Activity Bus</h2><div class="form-row"><label>Approved By</label><select id="busApprovedBy" class="field" onchange="state.laneValues.BUS.approvedByUsername=this.value">${adultOptions(v.approvedByUsername)}</select></div><div id="busStudentStatus" class="bus-pending">${ready?'Scan or choose a student. Bus From transportation assignments will be checked automatically.':'Activity Bus data integration is staged but not enabled against the production backend yet.'}</div></div>`;
+  document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:true})}<div class="card"><h2>Activity Bus</h2><div class="form-row"><label>Approved By</label><select id="busApprovedBy" class="field" onchange="state.laneValues.BUS.approvedByUsername=this.value">${adultOptions(v.approvedByUsername)}</select></div><div id="busStudentStatus" class="bus-pending">${ready?(state.bulk?'Add students to the basket, then Send. Each student’s Bus From assignments will be checked separately.':'Scan or choose a student. Bus From transportation assignments will be checked automatically.'):'Activity Bus data integration is staged but not enabled against the production backend yet.'}</div>${state.bulk?`<div class="submit-row"><button class="primary" onclick="submitBusBulk()" ${ready?'':'disabled'}>Send</button></div>`:''}</div>`;
   updateSelectedStudentArea();
 }
 
@@ -19,6 +19,7 @@ async function renderBusStudentStatus(){
   const box=document.getElementById('busStudentStatus');
   if(!box)return;
   if(!activityBusEnabled()){box.className='bus-pending';box.textContent='Activity Bus data integration is staged but not enabled against the production backend yet.';return}
+  if(state.bulk)return;
   if(!state.student){box.className='bus-pending';box.textContent='Scan or choose a student.';return}
   if(state.busBusy)return;
 
@@ -58,7 +59,7 @@ async function renderBusStudentStatus(){
 }
 
 async function submitBusPass(allowDuplicate){
-  if(!activityBusEnabled()||!state.student||state.busBusy)return;
+  if(!activityBusEnabled()||state.bulk||!state.student||state.busBusy)return;
   const box=document.getElementById('busStudentStatus');
   if(!box)return;
 
@@ -108,6 +109,40 @@ async function submitBusPass(allowDuplicate){
     box.innerHTML=`<strong>NOT RECORDED</strong><br>${esc(err.message||'Activity Bus submission failed.')}`;
   }finally{
     state.busBusy=false;
+  }
+}
+
+async function submitBusBulk(){
+  if(!activityBusEnabled()||!state.bulk||state.submitting||state.busBusy)return;
+  const ids=selectedIds();
+  if(!ids.length)return toast('Choose a student.',true);
+  const approved=document.getElementById('busApprovedBy');
+  const approvedByUsername=approved?approved.value:state.laneValues.BUS.approvedByUsername;
+  state.laneValues.BUS.approvedByUsername=approvedByUsername;
+  clearBusResetTimer();
+  state.busOverride=null;
+  state.submitting=true;
+  const button=document.querySelector('#workspace .submit-row .primary');
+  if(button){button.disabled=true;button.textContent='Sending…'}
+  try{
+    const res=await server('submitBusWorkflow',state.token,{deviceId:state.deviceId,
+      bulk:true,studentIds:ids,approvedByUsername});
+    if(!res||res.ok!==true||res.bulk!==true||!Array.isArray(res.created)||!Array.isArray(res.errors)){
+      throw new Error('Activity Bus bulk response could not be verified. Check Transactions before trying again.');
+    }
+    if(state.lane==='BUS'&&state.bulk){
+      resetAfterSend();
+      const box=document.getElementById('busStudentStatus');
+      box.className='bus-status '+(res.errorCount?'bus-warning':'bus-success');
+      box.innerHTML=`<strong>${res.createdCount} RECORDED${res.errorCount?` · ${res.errorCount} REQUIRE ATTENTION`:''}</strong><div class="small">Batch: ${esc(res.batchRoot)}</div>${res.errors.length?'<div class="bus-assignment-list">'+res.errors.map(e=>`<div class="bus-assignment"><strong>${esc(e.studentName||e.studentId)}</strong><div class="small">${esc(e.studentId)} · ${esc(e.message)}</div></div>`).join('')+'</div>':''}`;
+    }
+    if(res.errorCount)playBusAlertTone();
+    toast(`${res.createdCount} recorded${res.errorCount?`; ${res.errorCount} require attention.`:'.'}`,Boolean(res.errorCount));
+  }catch(err){
+    toast(err.message||'Activity Bus bulk submission failed. Check Transactions before retrying.',true,7000);
+  }finally{
+    state.submitting=false;
+    if(button&&button.isConnected){button.disabled=false;button.textContent='Send'}
   }
 }
 

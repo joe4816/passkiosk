@@ -83,9 +83,15 @@ Each returned assignment contains:
 
 ## Authorization behavior
 
-The Activity Bus lane is single-student only.
+Activity Bus supports both single-student rapid scanning and the shared bulk basket (decision revised 2026-10-04).
 
-The scan/selection itself is approval. There is no additional confirmation button.
+In bulk mode, add students by search, pasted student IDs, or repeated QR scans, then press Send. Approved By applies to the batch while the actual session operator remains separately recorded. Each student is checked against the current student source and usable Bus From assignments. Multiple assignments remain together in that student's snapshot.
+
+The backend creates one NORMAL BUS transaction per eligible student, using the shared batch root and numbered suffixes. Accepted students who cannot be authorized are written to Processing_Errors with a matching `-ERR` ID and returned in the on-screen batch error report. Valid students continue even when others have no bus information or were already scanned today. Repeated IDs in a batch are deduplicated.
+
+Bulk never overrides a same-day duplicate, even if a caller supplies `allowDuplicate`. Already-scanned students require the existing deliberate single-student rescan flow. Bulk submission creates no Print_Jobs rows, including error-report jobs, while printing is parked.
+
+In single-student mode, the scan/selection itself is approval. There is no additional confirmation button. Bulk mode uses the same basket and Send action as other bulk workflows.
 
 Approved By defaults to the logged-in adult but may be changed to another active PassKiosk adult.
 
@@ -191,5 +197,9 @@ Only after the Apps Script deployment containing the bus integration is live:
 6. Rescan within the window and verify a second transaction is stored as `DUPLICATE`.
 7. Confirm the original transaction is unchanged.
 8. Change `activityBusData` to `true` in `config.js`.
+
+9. Bulk: mixed eligible/no-bus/already-scanned students; verify independent outcomes, shared batch IDs, Processing_Errors, and no Print_Jobs.
+10. Bulk: repeated IDs, two-assignment students, changed Approved By, rapid double-tap, and simultaneous kiosk submissions.
+11. Switch back to single-student mode and verify the deliberate duplicate rescan still works.
 
 Printing remains disabled/unrelated during these tests.

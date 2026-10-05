@@ -47,7 +47,7 @@ function getBusInfoForSession_(token, studentId) {
   if (!student) throw new Error('Student could not be found in the current student source.');
 
   const cfg = readHelperConfig_();
-  const lookup = readBusAssignments_(id, cfg);
+  const lookup = parseBusAssignmentRows_(busRows.rows[id] || [], busRows.headers);
   const prior = findTodayBusTransactions_(id, cfg);
 
   return {
@@ -77,6 +77,10 @@ function submitBusWorkflow_(token, request) {
   if (!request || typeof request !== 'object') throw new Error('Missing Activity Bus submission.');
   if (String(request.deviceId || '') !== String(session.deviceId || '')) {
     throw new Error('Device mismatch.');
+  }
+
+  if (request.bulk === true || (Array.isArray(request.studentIds) && request.studentIds.length > 1)) {
+    return submitBusBulkWorkflow_(session, request, cfg);
   }
 
   const studentId = normalizeStudentId_(
@@ -146,7 +150,31 @@ function submitBusWorkflow_(token, request) {
     const transactionId = 'PK-' + randomId_(8);
     const name = [student.firstName, student.lastName].filter(Boolean).join(' ');
 
-    const routeLines = lookup.assignments.map(function(a) {
+    const tx = buildBusTransaction_(transactionId, now, session, student, approved, lookup, scanType, duplicateOf);
+
+    appendMappedRows_(PK.TRANSACTIONS_SHEET, [tx]);
+
+    return {
+      ok: true,
+      transactionId: transactionId,
+      duplicate: scanType === 'DUPLICATE',
+      scanType: scanType,
+      duplicateOfTransactionId: duplicateOf,
+      studentId: studentId,
+      studentName: name,
+      sped: lookup.sped,
+      assignmentCount: lookup.assignments.length,
+      assignments: lookup.assignments,
+      printingQueued: false
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function buildBusTransaction_(transactionId, now, session, student, approved, lookup, scanType, duplicateOf) {
+  const name = [student.firstName, student.lastName].filter(Boolean).join(' ');
+  const routeLines = lookup.assignments.map(function(a) {
       return [a.route, a.run].filter(Boolean).join(' · ');
     });
 
@@ -200,21 +228,82 @@ function submitBusWorkflow_(token, request) {
       'Bus Snapshot': formatBusSnapshot_(lookup.assignments)
     };
 
-    appendMappedRows_(PK.TRANSACTIONS_SHEET, [tx]);
+  return tx;
+}
 
-    return {
-      ok: true,
-      transactionId: transactionId,
-      duplicate: scanType === 'DUPLICATE',
-      scanType: scanType,
-      duplicateOfTransactionId: duplicateOf,
-      studentId: studentId,
-      studentName: name,
-      sped: lookup.sped,
-      assignmentCount: lookup.assignments.length,
-      assignments: lookup.assignments,
-      printingQueued: false
-    };
+/** Bulk follows the shared batch IDs/error schema, without any print jobs. */
+function submitBusBulkWorkflow_(session, request, cfg) {
+  const rawIds = Array.isArray(request.studentIds) ? request.studentIds : [];
+  const ids = Array.from(new Set(rawIds.map(normalizeStudentId_).filter(Boolean)));
+  if (!ids.length) throw new Error('Choose at least one student.');
+
+  const approvedUsername = normalizeUsername_(request.approvedByUsername ||
+    (request.data && request.data.approvedByUsername) || session.username);
+  const approved = getActiveAdultByUsername_(approvedUsername);
+  if (!approved) throw new Error('Approved By is not an active adult.');
+  assertBusTransactionHeaders_();
+
+  const students = getStudentMap_();
+  const root = 'PK-' + randomId_(8);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const now = new Date();
+    const tz = cfg.sources.timeZone || PK.TIME_ZONE_FALLBACK;
+    const today = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+    const priorByStudent = {};
+    readSheetRecords_(PK.TRANSACTIONS_SHEET).forEach(function(row) {
+      if (String(row['Workflow'] || '') !== PK.WORKFLOWS.BUS ||
+          String(row.Status || '') === 'VOID' || busDateKey_(row['Created At'], tz) !== today) return;
+      const id = normalizeStudentId_(row['Student ID']);
+      if (!priorByStudent[id]) priorByStudent[id] = row;
+    });
+
+    const busRows = readBusBatchRows_(cfg);
+    const transactions = [];
+    const errorRows = [];
+    const created = [];
+    const errors = [];
+    ids.forEach(function(id, index) {
+      const transactionId = root + '-' + String(index + 1).padStart(2, '0');
+      const student = students[id];
+      let code = '';
+      let message = '';
+      let lookup;
+      if (!student) {
+        code = 'STUDENT_NOT_FOUND';
+        message = 'Student could not be found in the current student source.';
+      } else {
+        // A source/config failure aborts the batch before any rows are written.
+        lookup = readBusAssignments_(id, cfg);
+        if (!lookup.assignments.length) {
+          code = 'NO_BUS_INFO';
+          message = 'NO BUS INFO ON FILE';
+        } else if (priorByStudent[id]) {
+          code = 'ALREADY_SCANNED_TODAY';
+          message = 'ALREADY SCANNED TODAY — use single-student mode for a deliberate duplicate.';
+        }
+      }
+      if (code) {
+        const errorId = transactionId + '-ERR';
+        errorRows.push(makeProcessingErrorRow_(errorId, now, session, PK.WORKFLOWS.BUS,
+          student || {studentId: id}, 'BUS_AUTHORIZATION', code, message, request));
+        errors.push({transactionId: errorId, studentId: id,
+          studentName: student ? [student.firstName, student.lastName].filter(Boolean).join(' ') : '',
+          code: code, message: message,
+          priorTransactionId: priorByStudent[id] ? String(priorByStudent[id]['Transaction ID'] || '') : ''});
+        return;
+      }
+      transactions.push(buildBusTransaction_(transactionId, now, session, student,
+        approved, lookup, 'NORMAL', ''));
+      created.push({transactionId: transactionId, studentId: id,
+        studentName: [student.firstName, student.lastName].filter(Boolean).join(' '),
+        assignmentCount: lookup.assignments.length});
+    });
+    if (transactions.length) appendMappedRows_(PK.TRANSACTIONS_SHEET, transactions);
+    if (errorRows.length) appendMappedRows_(PK.ERRORS_SHEET, errorRows);
+    return {ok: true, bulk: true, batchRoot: root, createdCount: created.length,
+      errorCount: errors.length, created: created, errors: errors, printingQueued: false};
   } finally {
     lock.releaseLock();
   }
@@ -254,13 +343,41 @@ function readBusAssignments_(studentId, cfg) {
     .findAll()
     .sort(function(a, b) { return a.getRow() - b.getRow(); });
 
+  const rows = matches.map(function(cell) {
+    return sheet.getRange(cell.getRow(), 1, 1, lastColumn).getDisplayValues()[0];
+  });
+  return parseBusAssignmentRows_(rows, h);
+}
+
+/** Read the small normalized projection once for a whole bulk submission. */
+function readBusBatchRows_(cfg) {
+  const sourceId = String(cfg.sources.studentSpreadsheetId || '').trim();
+  const sheetName = String(cfg.sources.busSheet || 'Bus_Info').trim() || 'Bus_Info';
+  if (!sourceId) throw new Error('Student Spreadsheet ID is not configured.');
+  const sheet = SpreadsheetApp.openById(sourceId).getSheetByName(sheetName);
+  if (!sheet) throw new Error('Bus sheet not found: ' + sheetName);
+  const values = sheet.getDataRange().getDisplayValues();
+  const h = busHeaderIndex_(values[0] || []);
+  PK_BUS_REQUIRED_HEADERS.forEach(function(name) {
+    if (h[name] == null) throw new Error('Bus_Info is missing required header: ' + name);
+  });
+  const rows = {};
+  values.slice(1).forEach(function(row) {
+    const id = normalizeStudentId_(row[h.StudentId]);
+    if (!id) return;
+    if (!rows[id]) rows[id] = [];
+    rows[id].push(row);
+  });
+  return {headers: h, rows: rows};
+}
+
+function parseBusAssignmentRows_(rows, h) {
   let sped = '';
   let sourceAssignmentCount = 0;
   const assignments = [];
   const seen = {};
 
-  matches.forEach(function(cell) {
-    const row = sheet.getRange(cell.getRow(), 1, 1, lastColumn).getDisplayValues()[0];
+  rows.forEach(function(row) {
 
     if (!sped) sped = String(row[h.Sped] || '').trim();
 

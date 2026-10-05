@@ -311,7 +311,7 @@ function pdfEmailFields_(tx, cfg) {
   add('Student', tx['Student Name']); add('Student number', tx['Student ID']); add('Grade', tx.Grade);
   if (tx.Workflow === 'PASS') {
     add('From', tx.From); add('To', tx.To);
-    if (typeof tx.Excused === 'boolean') add('Excused', tx.Excused ? 'Yes' : 'No');
+    add('Excused', tx.Excused === true ? '☑' : '☐');
   } else if (tx.Workflow === 'RQST') {
     add('Deliver to', [tx['Delivery Period'], tx['Delivery Room'] ? 'Rm ' + tx['Delivery Room'] : '', tx['Delivery Teacher']].filter(Boolean).join(' · '));
     add('Send student to', tx.Destination);

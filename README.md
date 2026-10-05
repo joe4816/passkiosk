@@ -34,4 +34,4 @@ The Apps Script backend has **not yet been migrated to the secure RPC wrappers i
 
 ## Activity Bus
 
-The Activity Bus lane remains intentionally scaffolded but not wired to `Bus_Info` yet. Honk audio and duplicate-scan handling also remain unwired.
+The Activity Bus data path is now implemented in the repository. `apps-script/BusIntegration.gs` reads the configured `Bus_Info` tab, preserves multiple valid `Bus From` assignments, checks same-day duplicates, and records Activity Bus transactions without creating a print job. The browser lane includes the 3-second no-data reset and 5-second duplicate rescan override. The feature remains gated off until the additive Apps Script file and updated secure RPC are installed in production. Physical printing remains separate.

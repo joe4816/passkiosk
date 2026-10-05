@@ -117,3 +117,56 @@ If step 4 fails because Apps Script returns a blank active-user email in the cur
 A detention configuration value of `Window (School Days) = 0` means **no scheduling restriction**, not “only consider the first future school day.”
 
 For automatic suggestions, PassKiosk should compare the next **three available active school days** when the configured window is 0, then suggest the date with the lowest assigned count (earliest date breaks a tie). Manual date selection remains unrestricted by the zero window value, subject only to active-day / duplicate rules and any nonzero daily capacity.
+
+
+## Explicit Pass Excused field
+
+The GitHub client has the UI and request payload ready, but the feature flag remains off until the production backend persists the value.
+
+Before setting `PASSKIOSK_CONFIG.features.explicitExcused` to `true`:
+
+1. Add an `Excused` column to the Transactions sheet.
+2. Add the field to the base object inside `buildTransaction_`:
+
+```javascript
+'Excused': false,
+```
+
+3. In `buildPassTx_`, persist the boolean explicitly:
+
+```javascript
+tx['Excused'] = data.excused === true;
+```
+
+4. Confirm `appendMappedRows_` recognizes the new sheet header.
+5. Submit one excused and one non-excused Pass and verify the stored values.
+6. Only then change the public client feature gate to `true`.
+
+Do not infer this value from `Reason(s)`.
+
+## Detention zero-window correction
+
+The production backend supplied on 2026-10-02 currently stops after the first eligible date when `Window (School Days) = 0`:
+
+```javascript
+if (dcfg.windowDays === 0) break;
+```
+
+That contradicts the intended policy already documented here. Zero means **no scheduling restriction**, and the automatic suggestion should compare the next three available active school days and choose the lowest assigned count, with the earliest date breaking a tie.
+
+Replace the eligible-date stopping rule in `buildDetentionAvailability_` with:
+
+```javascript
+const suggestionLimit = dcfg.windowDays === 0 ? 3 : dcfg.windowDays;
+
+// ...inside the future-date loop, after eligible.push(...)
+if (eligible.length >= suggestionLimit) break;
+```
+
+The rest of the existing sort remains valid:
+
+```javascript
+eligible.sort((a,b) => a.count - b.count || a.dateKey.localeCompare(b.dateKey));
+```
+
+Manual date selection remains unrestricted by a zero window, subject to active-day, capacity, and duplicate-assignment checks.

@@ -3,16 +3,30 @@
  *
  * Add this file to the bound Apps Script project alongside Code.gs and
  * SecureRpc.gs. It intentionally does NOT create a Print_Jobs row. The Activity
- * Bus transaction can be recorded and audited while physical printing remains
- * a separate integration step.
+ * Bus authorization can be recorded and audited while physical printing stays
+ * parked as a separate integration step.
  *
  * Source contract:
- *   Helper -> Student Spreadsheet ID
- *   Helper -> Bus Sheet (default: Bus_Info)
+ *   Helper -> APP SOURCES -> Student Spreadsheet ID
+ *   Helper -> APP SOURCES -> Bus Sheet (Bus_Info)
  *
- * Bus_Info is keyed by StudentId and may contain more than one row per student.
- * Only complete "Bus From" assignments are used for the Activity Bus workflow.
+ * Bus_Info is an already-normalized projection keyed by StudentId and may
+ * contain more than one row per student. Only usable "Bus From" assignments
+ * are Activity Bus home assignments. SPED is informational only and is never
+ * interpreted as transportation eligibility.
  */
+
+const PK_BUS_REQUIRED_HEADERS = Object.freeze([
+  'StudentId',
+  'Sped',
+  'Bus From Route',
+  'Bus From Run',
+  'Bus From School Time',
+  'Bus From Dropoff Address',
+  'Bus From Dropoff Time',
+  'Bus From Days',
+  'Bus From Assignment Count'
+]);
 
 function getBusInfoForSession_(token, studentId) {
   requireSession_(token);
@@ -25,19 +39,25 @@ function getBusInfoForSession_(token, studentId) {
 
   const cfg = readHelperConfig_();
   const lookup = readBusAssignments_(id, cfg);
-  const prior = findTodayBusTransaction_(id, cfg);
+  const prior = findTodayBusTransactions_(id, cfg);
 
   return {
     ok: true,
     wired: true,
     studentId: id,
+    studentName: [student.firstName, student.lastName].filter(Boolean).join(' '),
+    grade: student.grade,
     sped: lookup.sped,
     assignments: lookup.assignments,
     assignmentCount: lookup.assignments.length,
     sourceAssignmentCount: lookup.sourceAssignmentCount,
-    alreadyScannedToday: Boolean(prior),
-    priorTransactionId: prior ? String(prior['Transaction ID'] || '') : '',
-    priorCreatedAt: prior ? prior['Created At'] : ''
+    hasBusInfo: lookup.assignments.length > 0,
+    alreadyScannedToday: prior.length > 0,
+    priorTransactionIds: prior.map(function(r) {
+      return String(r['Transaction ID'] || '');
+    }).filter(Boolean),
+    priorTransactionId: prior.length ? String(prior[0]['Transaction ID'] || '') : '',
+    priorCreatedAt: prior.length ? prior[0]['Created At'] : ''
   };
 }
 
@@ -50,47 +70,68 @@ function submitBusWorkflow_(token, request) {
     throw new Error('Device mismatch.');
   }
 
-  const studentId = normalizeStudentId_(request.studentId);
+  const studentId = normalizeStudentId_(
+    request.studentId ||
+    (Array.isArray(request.studentIds) && request.studentIds.length ? request.studentIds[0] : '')
+  );
   if (!studentId) throw new Error('Choose a student.');
 
   const student = getStudentMap_()[studentId];
   if (!student) throw new Error('Student could not be found in the current student source.');
 
-  const approved = getActiveAdultByUsername_(request.approvedByUsername);
+  const approvedUsername = normalizeUsername_(
+    request.approvedByUsername ||
+    (request.data && request.data.approvedByUsername) ||
+    session.username
+  );
+  const approved = getActiveAdultByUsername_(approvedUsername);
   if (!approved) throw new Error('Approved By is not an active adult.');
 
-  const allowDuplicate = request.allowDuplicate === true;
-  const now = new Date();
+  const allowDuplicate = request.allowDuplicate === true ||
+    Boolean(request.data && request.data.duplicateOverride === true);
 
+  const now = new Date();
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
   try {
-    // Re-read inside the lock so two kiosks cannot both treat the same student's
-    // first scan as unique.
+    // Re-read inside the lock so two kiosks cannot both treat the same
+    // student's first scan as unique.
     const lookup = readBusAssignments_(studentId, cfg);
+
     if (!lookup.assignments.length) {
       return {
         ok: false,
         code: 'NO_BUS_INFO',
-        message: 'No usable Bus From assignment is on file for this student.',
+        message: 'NO BUS INFO ON FILE',
         studentId: studentId,
         assignments: []
       };
     }
 
-    const prior = findTodayBusTransaction_(studentId, cfg);
-    if (prior && !allowDuplicate) {
+    const prior = findTodayBusTransactions_(studentId, cfg);
+
+    if (prior.length && !allowDuplicate) {
       return {
         ok: false,
         code: 'ALREADY_SCANNED_TODAY',
+        message: 'ALREADY SCANNED TODAY',
         duplicate: true,
         requiresOverride: true,
-        priorTransactionId: String(prior['Transaction ID'] || ''),
+        priorTransactionIds: prior.map(function(r) {
+          return String(r['Transaction ID'] || '');
+        }).filter(Boolean),
+        priorTransactionId: String(prior[0]['Transaction ID'] || ''),
         assignments: lookup.assignments
       };
     }
 
+    const original = prior.find(function(r) {
+      return String(r['Bus Scan Type'] || '').toUpperCase() !== 'DUPLICATE';
+    }) || prior[0] || null;
+
+    const scanType = prior.length ? 'DUPLICATE' : 'NORMAL';
+    const duplicateOf = original ? String(original['Transaction ID'] || '') : '';
     const transactionId = 'PK-' + randomId_(8);
     const name = [student.firstName, student.lastName].filter(Boolean).join(' ');
 
@@ -138,10 +179,14 @@ function submitBusWorkflow_(token, request) {
       'Bus Route(s)': routeLines.join('\n'),
       'Bus Drop-off(s)': dropoffLines.join('\n'),
       'Schema Version': PK.SCHEMA_VERSION,
-      'Notes': prior ? 'DUPLICATE OF ' + String(prior['Transaction ID'] || '') : '',
+      'Notes': '',
       'Voided At': '',
       'Voided By Username': '',
-      'Voided By': ''
+      'Voided By': '',
+      'Bus Assignment Count': lookup.assignments.length,
+      'Bus Scan Type': scanType,
+      'Duplicate Of Transaction ID': duplicateOf,
+      'Bus Snapshot': formatBusSnapshot_(lookup.assignments)
     };
 
     appendMappedRows_(PK.TRANSACTIONS_SHEET, [tx]);
@@ -149,11 +194,13 @@ function submitBusWorkflow_(token, request) {
     return {
       ok: true,
       transactionId: transactionId,
-      duplicate: Boolean(prior),
-      duplicateOfTransactionId: prior ? String(prior['Transaction ID'] || '') : '',
+      duplicate: scanType === 'DUPLICATE',
+      scanType: scanType,
+      duplicateOfTransactionId: duplicateOf,
       studentId: studentId,
       studentName: name,
       sped: lookup.sped,
+      assignmentCount: lookup.assignments.length,
       assignments: lookup.assignments,
       printingQueued: false
     };
@@ -167,7 +214,6 @@ function readBusAssignments_(studentId, cfg) {
   const sheetName = String(cfg.sources.busSheet || 'Bus_Info').trim() || 'Bus_Info';
 
   if (!sourceId) throw new Error('Student Spreadsheet ID is not configured.');
-  if (!sheetName) throw new Error('Bus Sheet is not configured.');
 
   const source = SpreadsheetApp.openById(sourceId);
   const sheet = source.getSheetByName(sheetName);
@@ -175,38 +221,35 @@ function readBusAssignments_(studentId, cfg) {
 
   const lastRow = sheet.getLastRow();
   const lastColumn = sheet.getLastColumn();
+
   if (lastRow < 2 || lastColumn < 1) {
     return { sped: '', sourceAssignmentCount: 0, assignments: [] };
   }
 
-  const values = sheet.getRange(1, 1, lastRow, lastColumn).getDisplayValues();
-  const headers = values[0].map(function(v) { return String(v || '').trim(); });
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0]
+    .map(function(v) { return String(v || '').trim(); });
   const h = busHeaderIndex_(headers);
 
-  const required = [
-    'StudentId',
-    'Sped',
-    'Bus From Route',
-    'Bus From Run',
-    'Bus From School Time',
-    'Bus From Dropoff Address',
-    'Bus From Dropoff Time',
-    'Bus From Days',
-    'Bus From Assignment Count'
-  ];
-
-  required.forEach(function(name) {
+  PK_BUS_REQUIRED_HEADERS.forEach(function(name) {
     if (h[name] == null) throw new Error('Bus_Info is missing required header: ' + name);
   });
+
+  // Search only the StudentId column instead of reading all transportation
+  // records on every rapid Activity Bus scan.
+  const matches = sheet
+    .getRange(2, h.StudentId + 1, lastRow - 1, 1)
+    .createTextFinder(String(studentId))
+    .matchEntireCell(true)
+    .findAll()
+    .sort(function(a, b) { return a.getRow() - b.getRow(); });
 
   let sped = '';
   let sourceAssignmentCount = 0;
   const assignments = [];
   const seen = {};
 
-  for (let r = 1; r < values.length; r++) {
-    const row = values[r];
-    if (normalizeStudentId_(row[h.StudentId]) !== studentId) continue;
+  matches.forEach(function(cell) {
+    const row = sheet.getRange(cell.getRow(), 1, 1, lastColumn).getDisplayValues()[0];
 
     if (!sped) sped = String(row[h.Sped] || '').trim();
 
@@ -222,13 +265,13 @@ function readBusAssignments_(studentId, cfg) {
     const dropoffTime = String(row[h['Bus From Dropoff Time']] || '').trim();
     const days = String(row[h['Bus From Days']] || '').trim();
 
-    // A source row that represents only an AM / "Bus To" assignment can have
-    // blank Bus From fields. Preserve the row in Bus_Info, but do not present it
-    // as an Activity Bus home assignment.
-    if (!route || !dropoffAddress) continue;
+    // A source row can represent an extra morning assignment with blank
+    // afternoon fields. Keep it in Bus_Info, but do not treat it as an
+    // Activity Bus home assignment.
+    if (!route || !dropoffAddress) return;
 
     const key = [route, run, schoolTime, dropoffAddress, dropoffTime, days].join('|');
-    if (seen[key]) continue;
+    if (seen[key]) return;
     seen[key] = true;
 
     assignments.push({
@@ -239,7 +282,7 @@ function readBusAssignments_(studentId, cfg) {
       dropoffTime: dropoffTime,
       days: days
     });
-  }
+  });
 
   return {
     sped: sped,
@@ -248,23 +291,34 @@ function readBusAssignments_(studentId, cfg) {
   };
 }
 
-function findTodayBusTransaction_(studentId, cfg) {
+function findTodayBusTransactions_(studentId, cfg) {
   const tz = cfg.sources.timeZone || PK.TIME_ZONE_FALLBACK;
   const todayKey = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   const rows = readSheetRecords_(PK.TRANSACTIONS_SHEET);
 
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const row = rows[i];
+  return rows.filter(function(row) {
+    if (String(row['Workflow'] || '') !== PK.WORKFLOWS.BUS) return false;
+    if (String(row['Status'] || '') === 'VOID') return false;
+    if (normalizeStudentId_(row['Student ID']) !== studentId) return false;
+    return busDateKey_(row['Created At'], tz) === todayKey;
+  });
+}
 
-    if (String(row['Workflow'] || '') !== PK.WORKFLOWS.BUS) continue;
-    if (String(row['Status'] || '') === 'VOID') continue;
-    if (normalizeStudentId_(row['Student ID']) !== studentId) continue;
-    if (busDateKey_(row['Created At'], tz) !== todayKey) continue;
+function formatBusSnapshot_(assignments) {
+  return assignments.map(function(a, index) {
+    const pieces = [
+      '#' + (index + 1),
+      'Route ' + a.route
+    ];
 
-    return row;
-  }
+    if (a.run) pieces.push('Run ' + a.run);
+    if (a.schoolTime) pieces.push('School ' + a.schoolTime);
+    pieces.push('Drop ' + a.dropoffAddress);
+    if (a.dropoffTime) pieces.push('@ ' + a.dropoffTime);
+    if (a.days) pieces.push(a.days);
 
-  return null;
+    return pieces.join(' | ');
+  }).join('\n');
 }
 
 function busDateKey_(value, tz) {
@@ -286,4 +340,30 @@ function busHeaderIndex_(headers) {
     if (key) out[key] = index;
   });
   return out;
+}
+
+/**
+ * Manual Apps Script editor check. Returns metadata only; no student IDs or
+ * transportation details are emitted.
+ */
+function testBusIntegration_() {
+  const cfg = readHelperConfig_();
+  const source = SpreadsheetApp.openById(cfg.sources.studentSpreadsheetId);
+  const sheet = source.getSheetByName(cfg.sources.busSheet);
+  if (!sheet) throw new Error('Bus sheet not found: ' + cfg.sources.busSheet);
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  const h = busHeaderIndex_(headers);
+
+  PK_BUS_REQUIRED_HEADERS.forEach(function(name) {
+    if (h[name] == null) throw new Error('Bus_Info is missing required header: ' + name);
+  });
+
+  return {
+    ok: true,
+    sourceSpreadsheetId: cfg.sources.studentSpreadsheetId,
+    busSheet: cfg.sources.busSheet,
+    dataRows: Math.max(0, sheet.getLastRow() - 1),
+    requiredHeadersPresent: true
+  };
 }

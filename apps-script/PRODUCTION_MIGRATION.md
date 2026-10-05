@@ -10,6 +10,7 @@ Add these repository files to the bound Apps Script project:
 
 - `apps-script/SecureRpc.gs`
 - `apps-script/Bridge.html`
+- `apps-script/BusIntegration.gs`
 
 ## 2. Replace doGet
 
@@ -170,3 +171,51 @@ eligible.sort((a,b) => a.count - b.count || a.dateKey.localeCompare(b.dateKey));
 ```
 
 Manual date selection remains unrestricted by a zero window, subject to active-day, capacity, and duplicate-assignment checks.
+
+
+## Activity Bus integration
+
+The additive `apps-script/BusIntegration.gs` file is ready for the production Apps Script project. It depends on the existing Code.gs helpers and the Helper source settings already used by PassKiosk.
+
+Before enabling the browser feature:
+
+1. Add `BusIntegration.gs` to the bound Apps Script project.
+2. Replace `SecureRpc.gs` with the current repository version so these methods are allowlisted:
+   - `getBusInfo`
+   - `submitBusWorkflow`
+3. Confirm Helper `Student Spreadsheet ID` points to the current IC Master output workbook.
+4. Confirm Helper `Bus Sheet` is `Bus_Info`.
+5. Confirm the Bus_Info headers include:
+   - `StudentId`
+   - `Sped`
+   - `Bus From Route`
+   - `Bus From Run`
+   - `Bus From School Time`
+   - `Bus From Dropoff Address`
+   - `Bus From Dropoff Time`
+   - `Bus From Days`
+   - `Bus From Assignment Count`
+6. In the CCSD-restricted deployment, call `getBusInfo` for:
+   - one student with a single Bus From assignment;
+   - one student with multiple Bus From assignments;
+   - one student whose source has a row with blank Bus From fields.
+7. Verify no student data or spreadsheet IDs were added to the public GitHub repository.
+8. Set `PASSKIOSK_CONFIG.features.activityBusData` to `true`.
+
+The Activity Bus integration intentionally does **not** create a Print_Jobs row yet. It records the BUS transaction only. Printing can be attached later without changing the transportation lookup contract.
+
+### Same-day duplicate behavior
+
+The backend rechecks duplicates while holding the script lock, so two kiosks cannot both treat the same student's first scan as unique.
+
+- First BUS transaction today: recorded normally.
+- Another scan today: backend returns `ALREADY_SCANNED_TODAY` without creating a transaction.
+- Browser arms a five-second override window.
+- A second scan of the same student during that window resubmits with `allowDuplicate: true`.
+- The new transaction stores `DUPLICATE OF <transaction id>` in Notes for auditability.
+
+### No-bus behavior
+
+Rows with blank Bus From fields are not treated as home assignments. If the student has no usable Bus From assignment, the backend returns `NO_BUS_INFO`; the browser shows an alert and resets after three seconds.
+
+`Sped` is returned as informational source data only and is not used to allow or deny an Activity Bus transaction.

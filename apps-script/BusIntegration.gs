@@ -375,7 +375,9 @@ function testBusIntegration_() {
   const sheet = source.getSheetByName(cfg.sources.busSheet);
   if (!sheet) throw new Error('Bus sheet not found: ' + cfg.sources.busSheet);
 
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
   const h = busHeaderIndex_(headers);
 
   PK_BUS_REQUIRED_HEADERS.forEach(function(name) {
@@ -390,23 +392,85 @@ function testBusIntegration_() {
     .getDisplayValues()[0]
     .map(function(v) { return String(v || '').trim(); });
 
-  const recommendedAuditHeaders = [
-    'Bus Assignment Count',
-    'Bus Scan Type',
-    'Duplicate Of Transaction ID',
-    'Bus Snapshot'
-  ];
-
-  const missingAuditHeaders = recommendedAuditHeaders.filter(function(name) {
+  const missingTransactionHeaders = PK_BUS_TRANSACTION_HEADERS.filter(function(name) {
     return transactionHeaders.indexOf(name) === -1;
+  });
+
+  if (missingTransactionHeaders.length) {
+    throw new Error(
+      'Transactions is missing Activity Bus header(s): ' +
+      missingTransactionHeaders.join(', ')
+    );
+  }
+
+  const dataRows = Math.max(0, lastRow - 1);
+  const values = dataRows
+    ? sheet.getRange(2, 1, dataRows, lastColumn).getDisplayValues()
+    : [];
+
+  const students = {};
+  let rowsWithBlankFrom = 0;
+  let duplicateUsableAssignments = 0;
+
+  values.forEach(function(row) {
+    const id = normalizeStudentId_(row[h.StudentId]);
+    if (!id) return;
+
+    if (!students[id]) {
+      students[id] = {
+        sourceCount: 0,
+        usable: 0,
+        seen: {}
+      };
+    }
+
+    const record = students[id];
+    const sourceCount = Number(String(row[h['Bus From Assignment Count']] || '').trim() || 0);
+    if (Number.isFinite(sourceCount)) {
+      record.sourceCount = Math.max(record.sourceCount, sourceCount);
+    }
+
+    const route = String(row[h['Bus From Route']] || '').trim();
+    const run = String(row[h['Bus From Run']] || '').trim();
+    const schoolTime = String(row[h['Bus From School Time']] || '').trim();
+    const address = String(row[h['Bus From Dropoff Address']] || '').trim();
+    const dropoffTime = String(row[h['Bus From Dropoff Time']] || '').trim();
+    const days = String(row[h['Bus From Days']] || '').trim();
+
+    if (!route || !address) {
+      rowsWithBlankFrom++;
+      return;
+    }
+
+    const key = [route, run, schoolTime, address, dropoffTime, days].join('|');
+    if (record.seen[key]) {
+      duplicateUsableAssignments++;
+      return;
+    }
+
+    record.seen[key] = true;
+    record.usable++;
+  });
+
+  let studentsWithMultipleAssignments = 0;
+  let sourceCountMismatches = 0;
+
+  Object.keys(students).forEach(function(id) {
+    const record = students[id];
+    if (record.usable > 1) studentsWithMultipleAssignments++;
+    if (record.usable !== record.sourceCount) sourceCountMismatches++;
   });
 
   return {
     ok: true,
     busSheet: cfg.sources.busSheet,
-    dataRows: Math.max(0, sheet.getLastRow() - 1),
+    dataRows: dataRows,
+    uniqueStudents: Object.keys(students).length,
+    studentsWithMultipleAssignments: studentsWithMultipleAssignments,
+    rowsWithBlankFrom: rowsWithBlankFrom,
+    duplicateUsableAssignments: duplicateUsableAssignments,
+    sourceCountMismatches: sourceCountMismatches,
     requiredHeadersPresent: true,
-    transactionHeadersPresent: true,
-    missingRecommendedTransactionHeaders: missingAuditHeaders
+    transactionHeadersPresent: true
   };
 }

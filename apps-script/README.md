@@ -9,3 +9,17 @@ This directory contains the secure bridge pieces for migrating the PassKiosk UI 
 The production backend is intentionally **not** copied verbatim into this public repository because it contains deployment-specific identifiers and configuration. Those values should remain in Apps Script / Script Properties / the Helper sheet rather than public source control.
 
 Do not deploy the Apps Script project for unauthenticated access until the migration checklist has been completed.
+
+
+## Activity Bus
+
+`BusIntegration.gs` contains the staged non-printing Activity Bus backend:
+
+- reads all usable `Bus From` assignments from the configured `Bus_Info` sheet;
+- preserves multiple assignments;
+- checks same-day BUS transactions;
+- records normal/duplicate scan audit fields;
+- stores an immutable transportation snapshot;
+- intentionally creates no `Print_Jobs` row.
+
+Install it with the current `SecureRpc.gs`, run `testBusIntegration_()`, and follow `../docs/ACTIVITY_BUS.md` before enabling the public client feature gate.

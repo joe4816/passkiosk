@@ -57,7 +57,7 @@ function getBusInfoForSession_(token, studentId) {
       return String(r['Transaction ID'] || '');
     }).filter(Boolean),
     priorTransactionId: prior.length ? String(prior[0]['Transaction ID'] || '') : '',
-    priorCreatedAt: prior.length ? prior[0]['Created At'] : ''
+    priorCreatedAt: prior.length ? String(prior[0]['Created At'] || '') : ''
   };
 }
 
@@ -359,11 +359,30 @@ function testBusIntegration_() {
     if (h[name] == null) throw new Error('Bus_Info is missing required header: ' + name);
   });
 
+  const transactionSheet = passSheet_().getSheetByName(PK.TRANSACTIONS_SHEET);
+  if (!transactionSheet) throw new Error('Transactions sheet not found.');
+
+  const transactionHeaders = transactionSheet
+    .getRange(1, 1, 1, transactionSheet.getLastColumn())
+    .getDisplayValues()[0]
+    .map(function(v) { return String(v || '').trim(); });
+
+  const recommendedAuditHeaders = [
+    'Bus Assignment Count',
+    'Bus Scan Type',
+    'Duplicate Of Transaction ID',
+    'Bus Snapshot'
+  ];
+
+  const missingAuditHeaders = recommendedAuditHeaders.filter(function(name) {
+    return transactionHeaders.indexOf(name) === -1;
+  });
+
   return {
     ok: true,
-    sourceSpreadsheetId: cfg.sources.studentSpreadsheetId,
     busSheet: cfg.sources.busSheet,
     dataRows: Math.max(0, sheet.getLastRow() - 1),
-    requiredHeadersPresent: true
+    requiredHeadersPresent: true,
+    missingRecommendedTransactionHeaders: missingAuditHeaders
   };
 }

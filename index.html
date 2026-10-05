@@ -13,6 +13,7 @@
   <script defer src="config.js"></script>
   <script defer src="bridge.js"></script>
   <script defer src="js/app-core.js"></script>
+  <script defer src="js/app-email.js"></script>
   <script defer src="js/app-pass-request.js"></script>
   <script defer src="js/app-detention-settings.js"></script>
   <script defer src="js/app-camera-utils.js"></script>
@@ -33,7 +34,7 @@
       </div>
       <div id="printerPane" class="hidden">
         <div class="welcome"><span id="welcomeText">Welcome</span><button id="changeUserButton" class="recycle hidden" title="Change user" onclick="resetFrontDoor()">🔄</button></div>
-        <div class="front-title">Where do you want to print?</div>
+        <div id="outputPrompt" class="front-title">Where do you want to print?</div>
         <div id="frontPrinters"></div>
       </div>
     </div>
@@ -51,7 +52,7 @@
       </div>
       <div class="context-strip"><span id="contextUser"></span><span id="contextPrinter"></span></div>
     </div>
-    <div class="wrap"><div id="workspace" class="pick-lane">↑ Pick a lane</div></div>
+    <div class="wrap"><div id="emailDeliveryNotice" class="hidden" role="status" aria-live="polite"></div><div id="workspace" class="pick-lane">↑ Pick a lane</div></div>
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>

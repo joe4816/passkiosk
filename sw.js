@@ -1,4 +1,4 @@
-const CACHE = 'passkiosk-shell-v0.3.12';
+const CACHE = 'passkiosk-shell-v0.3.13';
 const SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const SHELL = [
   './config.js',
   './bridge.js',
   './js/app-core.js',
+  './js/app-email.js',
   './js/app-pass-request.js',
   './js/app-detention-settings.js',
   './js/app-camera-utils.js',

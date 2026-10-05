@@ -1,6 +1,6 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.9-ui-refinements',
+  version: '0.3.10-pdf-email',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: false,

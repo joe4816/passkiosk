@@ -27,3 +27,7 @@ Install it with the current `SecureRpc.gs`, run `testBusIntegration_()`, and fol
 ## Pending function replacements
 
 See `patches/README.md` for tested detention zero-window and explicit Excused patches. These replace named functions inside Code.gs; do not add them as duplicate function definitions. They remain staged, and client gates remain off pending live backend verification.
+
+## Temporary PDF email output
+
+Install `PdfEmail.gs` and the current `SecureRpc.gs` to add authenticated, printer-independent letter PDF delivery. See [PDF_EMAIL.md](../docs/PDF_EMAIL.md) for setup, deployment, permissions, smoke tests and recovery. Repository source alone does not activate live delivery.

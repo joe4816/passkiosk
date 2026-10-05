@@ -93,3 +93,9 @@ button.suggestion:hover,button.suggestion:focus-visible{background:var(--purple-
  .context-strip{font-size:12px;line-height:1.4}
  .basket-list{max-height:240px}
 }
+
+.email-notice{padding:14px 16px;margin:0 0 14px;border:1px solid var(--line);border-left:5px solid var(--purple);border-radius:12px;background:#fff;overflow-wrap:anywhere;line-height:1.45}
+.email-notice.warning{border-left-color:var(--warn)}
+.email-notice button,.email-job button{min-height:44px;margin-top:8px}
+.email-job{padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.email-job:last-child{border-bottom:0}

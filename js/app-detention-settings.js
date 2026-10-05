@@ -90,12 +90,11 @@ async function submitBusPass(allowDuplicate){
   box.innerHTML=`<strong>${allowDuplicate?'Recording duplicate…':'Recording Activity Bus pass…'}</strong>`;
 
   try{
-    const res=await server('submitBusWorkflow',context.token,{
-      deviceId:state.deviceId,
-      studentId:context.studentId,
-      approvedByUsername,
-      allowDuplicate:Boolean(allowDuplicate)
-    });
+    const emailMode=usePdfEmail();
+    const request={deviceId:state.deviceId,studentId:context.studentId,approvedByUsername,allowDuplicate:Boolean(allowDuplicate)};
+    const res=await server(emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
+      emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
+    if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
 
     if(!busContextIsCurrent(context))return;
     if(!res||res.ok!==true){
@@ -127,6 +126,7 @@ async function submitBusPass(allowDuplicate){
     scheduleBusReset(2500);
   }catch(err){
     if(!busContextIsCurrent(context))return;
+    if(usePdfEmail())showPdfEmailOutcome();
     state.busOverride=null;
     box.className='bus-status bus-error';
     box.innerHTML=`<strong>RECORDING NOT CONFIRMED</strong><br>${esc(err.message||'Activity Bus submission was interrupted.')}<div class="small">Check Transactions before retrying. The server may have recorded this authorization.</div>`;
@@ -139,6 +139,7 @@ async function submitBusPass(allowDuplicate){
 async function submitBusBulk(){
   if(!activityBusEnabled()||!state.bulk||state.submitting||state.busBusy||state.busWritePending)return;
   const ids=selectedIds();
+  if(usePdfEmail()&&ids.length>(state.pdfEmail.maxStudents||100))return toast('Email supports up to '+(state.pdfEmail.maxStudents||100)+' students per submission. Split the basket; nothing has been submitted.',true);
   if(!ids.length)return toast('Choose a student.',true);
   const context=busContext();
   const approved=document.getElementById('busApprovedBy');
@@ -151,8 +152,11 @@ async function submitBusBulk(){
   const button=document.querySelector('#workspace .submit-row .primary');
   if(button){button.disabled=true;button.textContent='Sending…'}
   try{
-    const res=await server('submitBusWorkflow',context.token,{deviceId:state.deviceId,
-      bulk:true,studentIds:ids,approvedByUsername});
+    const emailMode=usePdfEmail();
+    const request={deviceId:state.deviceId,bulk:true,studentIds:ids,approvedByUsername};
+    const res=await server(emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
+      emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
+    if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
     if(!res||res.ok!==true||res.bulk!==true||!res.batchRoot||!Array.isArray(res.created)||!Array.isArray(res.errors)||
         res.createdCount!==res.created.length||res.errorCount!==res.errors.length||
         res.createdCount+res.errorCount!==new Set(ids).size||
@@ -169,6 +173,7 @@ async function submitBusBulk(){
     if(res.errorCount)playBusAlertTone();
     toast(`${res.createdCount} recorded${res.errorCount?`; ${res.errorCount} require attention.`:'.'}`,Boolean(res.errorCount));
   }catch(err){
+    if(usePdfEmail()&&state.token===context.token)showPdfEmailOutcome();
     toast((err.message||'Activity Bus bulk submission was interrupted.')+' Recording is not confirmed; check Transactions before retrying.',true,7000);
   }finally{
     state.submitting=false;
@@ -313,9 +318,9 @@ function playBusAlertTone(){
   }catch(_){ }
 }
 
-async function renderSettings(){document.getElementById('workspace').innerHTML=`<div class="card"><h2>Settings</h2><div class="section-title">PRINTER</div><div id="settingsPrinters" class="settings-printers"></div></div><div class="card"><h2>Recently Sent — Last 5 Minutes</h2><div id="recentJobs"><div class="small muted">Loading…</div></div></div><div class="card"><button class="danger-btn" onclick="logout()">Sign Out</button></div>`;renderSettingsPrinters();await loadRecentJobs()}
+async function renderSettings(){document.getElementById('workspace').innerHTML=`${typeof emailSettingsHtml==='function'?emailSettingsHtml():''}<div class="card"><h2>Settings</h2><div class="section-title">PRINTER</div><div id="settingsPrinters" class="settings-printers"></div></div><div class="card"><h2>Recently Sent — Last 5 Minutes</h2><div id="recentJobs"><div class="small muted">Loading…</div></div></div><div class="card"><button class="danger-btn" onclick="logout()">Sign Out</button></div>`;renderSettingsPrinters();await loadRecentJobs();if(typeof loadRecentPdfEmails==='function')await loadRecentPdfEmails()}
 function renderSettingsPrinters(){const box=document.getElementById('settingsPrinters');if(!box)return;box.innerHTML=(state.bootstrap.printers||[]).map(p=>`<button class="settings-printer ${p.key===state.currentPrinter.key?'current':''}" onclick="setPrinter('${p.key}')">${esc(p.friendlyName)}</button>`).join('')}
-async function setPrinter(key){try{const res=await server('changePrinter',state.token,key);state.currentPrinter=res.printer;localStorage.setItem('PassKioskLastPrinter:'+state.session.username,key);updateContext();renderSettingsPrinters();toast('Printer changed to '+res.printer.friendlyName)}catch(err){toast(err.message,true)}}
+async function setPrinter(key){try{const res=await server('changePrinter',state.token,key);state.currentPrinter=res.printer;state.outputMode='PRINT';localStorage.setItem('PassKioskLastPrinter:'+state.session.username,key);updateContext();renderSettingsPrinters();toast('Printer changed to '+res.printer.friendlyName)}catch(err){toast(err.message,true)}}
 async function loadRecentJobs(){const box=document.getElementById('recentJobs');if(!box)return;try{state.recentJobs=await server('getRecentPrintJobs',state.token,state.deviceId);if(!state.recentJobs.length){box.innerHTML='<div class="small muted">Nothing sent from this device in the last five minutes.</div>';return}box.innerHTML=state.recentJobs.map(j=>`<div class="job" onclick="openReprint('${attr(j.printJobId)}')"><span class="small">${formatTime(j.attemptedAt)}</span><span><strong>${esc(j.studentName||j.transactionId)}</strong><br><span class="small muted">${esc(workflowLabel(j.workflow))} · ${esc(j.printerName)}</span></span><span class="status-${esc(j.status)}">${statusIcon(j.status)}</span></div>`).join('')}catch(err){box.innerHTML=`<div class="small" style="color:var(--danger)">${esc(err.message)}</div>`}}
 function openReprint(id){const job=state.recentJobs.find(x=>x.printJobId===id);if(!job)return;state.pendingReprint=job;document.getElementById('confirmText').innerHTML=`About to resend <strong>${esc(job.studentName||job.transactionId)}</strong> to:<br><br><strong>${esc(state.currentPrinter.friendlyName)}</strong>`;document.getElementById('confirmModal').classList.remove('hidden')}
 function closeConfirm(){state.pendingReprint=null;document.getElementById('confirmModal').classList.add('hidden')}
@@ -324,21 +329,26 @@ async function logout(){try{await server('signOut',state.token)}catch(_){ }locat
 
 async function submitLane(request){
   if(state.submitting)return toast('A submission is still in progress. Please wait.',true);
+  if(usePdfEmail()&&(request.studentIds||[]).length>(state.pdfEmail.maxStudents||100))return toast('Email supports up to '+(state.pdfEmail.maxStudents||100)+' students per submission. Split the basket; nothing has been submitted.',true);
   const context={epoch:state.busEpoch,lane:state.lane,token:state.token};
   state.submitting=true;
   const submitButtons=[...document.querySelectorAll('#workspace .submit-row .primary')];
   submitButtons.forEach(b=>{b.disabled=true;b.dataset.originalText=b.textContent;b.textContent='Sending…'});
   try{
     request.deviceId=state.deviceId;
-    const res=await server('submitWorkflow',context.token,request);
+    const emailMode=usePdfEmail();
+    const res=await server(emailMode?'submitEmailWorkflow':'submitWorkflow',context.token,
+      emailMode?emailSubmissionRequest(request):request);
+    if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
     if(!res||res.ok!==true||!Array.isArray(res.created)||!Array.isArray(res.errors)||
         res.createdCount!==res.created.length||res.errorCount!==res.errors.length){
       throw new Error('Submission response could not be verified.');
     }
     if(res.errorCount)toast(`${res.createdCount} created; ${res.errorCount} require attention.`,true);
-    else toast(`${res.createdCount} sent.`);
+    else toast(`${res.createdCount} ${emailMode?'recorded. See email delivery status above.':'sent.'}`);
     if(state.busEpoch===context.epoch&&state.lane===context.lane&&state.token===context.token)resetAfterSend();
   }catch(err){
+    if(usePdfEmail()&&state.token===context.token)showPdfEmailOutcome();
     toast((err.message||'Submission was interrupted.')+' Recording is not confirmed; check Transactions before retrying.',true,7000);
   }finally{
     state.submitting=false;
@@ -351,3 +361,5 @@ async function submitLane(request){
   }
 }
 function resetAfterSend(){const lane=state.lane,wasBulk=state.bulk;state.student=null;state.studentDetails=null;state.basket=[];state.detentionAvailability=null;state.requestDeliveryMode='AUTO';state.requestDeliveryPeriod='';state.requestWhen='';state.detentionDate='';state.bulk=wasBulk;if(lane==='PASS')renderPass();if(lane==='RQST')renderRequest();if(lane==='DET')renderDetention(false);if(lane==='LUNCH_DET')renderDetention(true);if(lane==='BUS')renderBus()}
+
+function usePdfEmail(){return state.outputMode==='EMAIL'&&Boolean(state.pdfEmail&&state.pdfEmail.enabled)}

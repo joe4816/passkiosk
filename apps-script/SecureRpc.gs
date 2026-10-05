@@ -25,10 +25,24 @@ function staffRpc(fn, args) {
     return authenticatedAdultPayload_(adult);
   }
 
+  if (method === 'startEmailSession') {
+    return startEmailSession_(adult.username, a[1], 'STAFF', requireCcsdStaffEmail_());
+  }
+
+  if (['getPdfEmailConfig', 'submitEmailWorkflow', 'getRecentPdfEmails', 'retryPdfEmail'].includes(method)) {
+    const session = requireSession_(a[0]);
+    if (session.username !== adult.username || session.emailAuthMode !== 'STAFF') {
+      throw new Error('PDF delivery must use your authenticated staff session.');
+    }
+  }
+
   // The legacy/current clients still pass a username as argument zero.
   // Ignore it for staff sessions and force the authenticated adult instead.
   if (method === 'startSession') {
     a[0] = adult.username;
+    const result = startSession_(...a);
+    return typeof bindPdfEmailIdentity_ === 'function'
+      ? bindPdfEmailIdentity_(result, 'STAFF', requireCcsdStaffEmail_()) : result;
   }
 
   return dispatchPassKioskRpc_(method, a);
@@ -42,19 +56,38 @@ function kioskRpc(key, fn, args) {
     throw new Error('Authenticated Google profile is not available in kiosk mode.');
   }
 
-  return dispatchPassKioskRpc_(method, args);
+  const a = Array.isArray(args) ? args : [];
+  if (method === 'startEmailSession') return startEmailSession_(a[0], a[1], 'KIOSK', '');
+  if (method === 'startSession') {
+    const result = startSession_(...a);
+    return typeof bindPdfEmailIdentity_ === 'function'
+      ? bindPdfEmailIdentity_(result, 'KIOSK', '') : result;
+  }
+  return dispatchPassKioskRpc_(method, a);
 }
 
 function dispatchPassKioskRpc_(fn, args) {
   const a = Array.isArray(args) ? args : [];
 
   switch (String(fn || '')) {
-    case 'getFrontDoorConfig': return getFrontDoorConfig_(...a);
+    case 'getFrontDoorConfig': {
+      const result = getFrontDoorConfig_(...a);
+      if (typeof pdfEmailFrontConfig_ === 'function') result.pdfEmail = pdfEmailFrontConfig_();
+      return result;
+    }
     case 'identifyAdult': return identifyAdult_(...a);
     case 'startSession': return startSession_(...a);
     case 'signOut': return signOut_(...a);
     case 'changePrinter': return changePrinter_(...a);
-    case 'getBootstrapData': return getBootstrapData_(...a);
+    case 'getBootstrapData': {
+      const result = getBootstrapData_(...a);
+      if (typeof getPdfEmailConfig_ === 'function') result.pdfEmail = getPdfEmailConfig_(a[0]);
+      return result;
+    }
+    case 'getPdfEmailConfig': return getPdfEmailConfig_(...a);
+    case 'submitEmailWorkflow': return submitEmailWorkflow_(...a);
+    case 'getRecentPdfEmails': return getRecentPdfEmails_(...a);
+    case 'retryPdfEmail': return retryPdfEmail_(...a);
     case 'getStudentDetails': return getStudentDetails_(...a);
     case 'getDetentionAvailability': return getDetentionAvailability_(...a);
     case 'getBusInfo': return getBusInfoForSession_(...a);
@@ -188,3 +221,11 @@ function servePassKioskBridge_() {
     .setTitle('PassKiosk Bridge')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
+
+
+/* PDF email public wrappers retain authenticated staff identity. */
+function startEmailSession(username, deviceId) { return staffRpc('startEmailSession', [username, deviceId]); }
+function getPdfEmailConfig(token) { return staffRpc('getPdfEmailConfig', [token]); }
+function submitEmailWorkflow(token, request) { return staffRpc('submitEmailWorkflow', [token, request]); }
+function getRecentPdfEmails(token, deviceId) { return staffRpc('getRecentPdfEmails', [token, deviceId]); }
+function retryPdfEmail(token, deviceId, id) { return staffRpc('retryPdfEmail', [token, deviceId, id]); }

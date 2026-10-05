@@ -21,9 +21,12 @@ jobs:
           node --check config.js
           node --check sw.js
           node --check js/app-core.js
+          node --check js/app-email.js
           node --check js/app-pass-request.js
           node --check js/app-detention-settings.js
           node --check js/app-camera-utils.js
+          cp apps-script/PdfEmail.gs /tmp/PdfEmail.js
+          node --check /tmp/PdfEmail.js
           cp apps-script/SecureRpc.gs /tmp/SecureRpc.js
           cp apps-script/BusIntegration.gs /tmp/BusIntegration.js
           node --check /tmp/SecureRpc.js
@@ -36,6 +39,7 @@ jobs:
           node tests/camera-choice.test.cjs
           node tests/backend-migrations.test.cjs
           node tests/workflow-reliability.test.cjs
+          node tests/pdf-email.test.cjs
 
       - name: Validate manifest and referenced static files
         run: |
@@ -84,7 +88,8 @@ jobs:
               'apps-script/Bridge.html',
               'apps-script/SecureRpc.gs',
               'apps-script/BusIntegration.gs',
-              'apps-script/BusIntegration.gs',
+              'apps-script/PdfEmail.gs',
+              'js/app-email.js',
           ]
           absent = [p for p in required if not (root / p).exists()]
           if absent:

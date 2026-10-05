@@ -76,6 +76,7 @@ jobs:
               'apps-script/Bridge.html',
               'apps-script/SecureRpc.gs',
               'apps-script/BusIntegration.gs',
+              'apps-script/BusIntegration.gs',
           ]
           absent = [p for p in required if not (root / p).exists()]
           if absent:

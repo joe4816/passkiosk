@@ -61,3 +61,35 @@
     }
 
 .camera-controls{padding:0 13px 10px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center}.camera-controls label{font-weight:700}.camera-controls .field{margin:0;min-width:0}.camera-controls .small{grid-column:1/-1;color:#ddd}
+
+/* Staff workflow refinements: comfortable touch targets and visible keyboard focus. */
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--purple);outline-offset:3px}
+button:disabled{cursor:wait;opacity:.6}
+.basket-toggle{min-height:44px;padding:8px 12px;font-size:14px;white-space:nowrap;border-radius:10px}
+.basket-toggle.active{background:var(--purple);color:#fff}
+.camera-btn,.xbtn,.recycle{min-width:44px;min-height:44px}
+.camera-btn{top:50%;transform:translateY(-50%)}
+.xbtn{flex-shrink:0;border-radius:8px}
+.xbtn:hover{background:rgba(93,45,161,.1)}
+.basket-summary{margin-top:12px;font-size:13px;font-weight:700;color:var(--purple)}
+.basket-list{max-height:320px;overflow:auto;overscroll-behavior:contain;padding:2px}
+.basket-item{width:100%;min-width:0}
+.basket-item>span,.student-card>div{min-width:0;overflow-wrap:anywhere}
+button.suggestion{width:100%;border:0;border-bottom:1px solid var(--line);background:#fff;color:var(--ink);text-align:left;font:inherit;min-height:56px}
+button.suggestion:hover,button.suggestion:focus-visible{background:var(--purple-soft)}
+.choices .choice,.period-btn{min-height:44px}
+.context-strip span{overflow-wrap:anywhere;min-width:0}
+.camera-modal{overflow:auto;padding:12px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+.camera-card{max-height:calc(100dvh - 24px);display:flex;flex-direction:column;overflow:auto}
+.camera-card video{min-height:0;flex:1 1 auto;max-height:54dvh;object-fit:contain;background:#000}
+.camera-head,.camera-controls,.camera-foot{flex-shrink:0}
+.camera-done{min-height:44px;min-width:64px}
+.toast{bottom:max(18px,env(safe-area-inset-bottom));line-height:1.4}
+@media(max-width:620px){
+ .field,.front-input{font-size:16px}
+ .front-card{margin:3vh 12px 16px;padding:20px}
+ .wrap{padding-bottom:max(20px,env(safe-area-inset-bottom))}
+ .submit-row>.primary{min-height:48px;min-width:120px}
+ .context-strip{font-size:12px;line-height:1.4}
+ .basket-list{max-height:240px}
+}

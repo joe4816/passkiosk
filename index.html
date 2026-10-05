@@ -42,19 +42,19 @@
   <div id="app" class="screen hidden">
     <div class="topbar">
       <div class="nav">
-        <button data-lane="PASS" onclick="selectLane('PASS')">Pass</button>
-        <button data-lane="RQST" onclick="selectLane('RQST')">Rqst🧑‍🎓</button>
-        <button data-lane="DET" onclick="selectLane('DET')">Det</button>
-        <button data-lane="LUNCH_DET" onclick="selectLane('LUNCH_DET')">🥪Det</button>
-        <button data-lane="BUS" onclick="selectLane('BUS')">🚌</button>
-        <button data-lane="SETTINGS" onclick="selectLane('SETTINGS')">⚙️</button>
+        <button data-lane="PASS" aria-label="Pass" aria-pressed="false" onclick="selectLane('PASS')">Pass</button>
+        <button data-lane="RQST" aria-label="Student request" aria-pressed="false" onclick="selectLane('RQST')">Rqst🧑‍🎓</button>
+        <button data-lane="DET" aria-label="After-school detention" aria-pressed="false" onclick="selectLane('DET')">Det</button>
+        <button data-lane="LUNCH_DET" aria-label="Lunch detention" aria-pressed="false" onclick="selectLane('LUNCH_DET')">🥪Det</button>
+        <button data-lane="BUS" aria-label="Activity bus" aria-pressed="false" onclick="selectLane('BUS')">🚌</button>
+        <button data-lane="SETTINGS" aria-label="Settings" aria-pressed="false" onclick="selectLane('SETTINGS')">⚙️</button>
       </div>
       <div class="context-strip"><span id="contextUser"></span><span id="contextPrinter"></span></div>
     </div>
     <div class="wrap"><div id="workspace" class="pick-lane">↑ Pick a lane</div></div>
   </div>
 
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <div id="confirmModal" class="modal hidden">
     <div class="modal-card">
@@ -64,7 +64,7 @@
     </div>
   </div>
 
-  <div id="cameraModal" class="modal camera-modal hidden">
+  <div id="cameraModal" class="modal camera-modal hidden" role="dialog" aria-modal="true" aria-label="Scan student QR">
     <div class="camera-card">
       <div class="camera-head"><strong>Scan Student QR</strong><button class="camera-done" onclick="closeCamera()">Done</button></div>
       <div class="camera-controls"><label for="cameraSelect">Camera</label><select id="cameraSelect" class="field" onchange="switchCamera(this.value)" disabled><option value="">Starting camera…</option></select><span id="cameraChoiceNote" class="small"></span></div>

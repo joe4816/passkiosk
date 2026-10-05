@@ -1,6 +1,6 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.8-workflow-recovery',
+  version: '0.3.9-ui-refinements',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: false,

@@ -70,7 +70,10 @@ function buildPassTx_(tx, student, data, cfg) {
   if (reason === 'Other' && !other) throw processingError_('MISSING_OTHER_REASON', 'Enter the Other reason.');
 
   assertPassExcusedHeader_();
-  tx['Excused'] = data.excused === true;
+  if (typeof data.excused !== 'boolean') {
+    throw processingError_('MISSING_EXCUSED', 'Choose Yes or No for Excused.');
+  }
+  tx['Excused'] = data.excused;
   tx['From'] = from;
   tx['To'] = to;
   tx['Reason(s)'] = reason === 'Other' ? other : reason;

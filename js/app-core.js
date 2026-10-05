@@ -1,5 +1,5 @@
-const PK_BUILD='0.3.6-bus-reliability';
-const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,bulk:false,student:null,studentDetails:null,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',submitting:false,busInfo:null,busOverride:null,busResetTimer:null,busCountdownTimer:null,busBusy:false,busEpoch:0,busWritePending:false,camera:{requestId:0,stream:null,raf:null,lastCode:'',lastAt:0,lastSeenAt:0}};
+const PK_BUILD='0.3.7-camera-choice';
+const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,bulk:false,student:null,studentDetails:null,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',submitting:false,busInfo:null,busOverride:null,busResetTimer:null,busCountdownTimer:null,busBusy:false,busEpoch:0,busWritePending:false,camera:{devices:[],selectedDeviceId:'',opening:false,requestId:0,stream:null,raf:null,lastCode:'',lastAt:0,lastSeenAt:0}};
 document.addEventListener('DOMContentLoaded',init);
 
 async function init(){

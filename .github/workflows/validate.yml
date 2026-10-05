@@ -33,6 +33,7 @@ jobs:
         run: |
           node tests/bus-bulk.test.cjs
           node tests/bus-reliability.test.cjs
+          node tests/camera-choice.test.cjs
 
       - name: Validate manifest and referenced static files
         run: |

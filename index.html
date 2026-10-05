@@ -67,6 +67,7 @@
   <div id="cameraModal" class="modal camera-modal hidden">
     <div class="camera-card">
       <div class="camera-head"><strong>Scan Student QR</strong><button class="camera-done" onclick="closeCamera()">Done</button></div>
+      <div class="camera-controls"><label for="cameraSelect">Camera</label><select id="cameraSelect" class="field" onchange="switchCamera(this.value)" disabled><option value="">Starting camera…</option></select><span id="cameraChoiceNote" class="small"></span></div>
       <video id="cameraVideo" playsinline muted></video>
       <canvas id="cameraCanvas" class="hidden"></canvas>
       <div class="camera-foot"><span id="cameraStatus">Point the camera at the student QR code.</span><span id="cameraCount"></span></div>

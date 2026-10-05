@@ -59,3 +59,5 @@
       label{font-size:14px}
       .choice{font-size:14px;padding:9px 12px}
     }
+
+.camera-controls{padding:0 13px 10px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center}.camera-controls label{font-weight:700}.camera-controls .field{margin:0;min-width:0}.camera-controls .small{grid-column:1/-1;color:#ddd}

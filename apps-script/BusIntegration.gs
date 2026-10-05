@@ -179,7 +179,7 @@ function submitBusWorkflow_(token, request) {
       'Bus Route(s)': routeLines.join('\n'),
       'Bus Drop-off(s)': dropoffLines.join('\n'),
       'Schema Version': PK.SCHEMA_VERSION,
-      'Notes': '',
+      'Notes': scanType === 'DUPLICATE' && duplicateOf ? 'DUPLICATE OF ' + duplicateOf : '',
       'Voided At': '',
       'Voided By Username': '',
       'Voided By': '',

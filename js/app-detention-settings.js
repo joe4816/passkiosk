@@ -6,8 +6,172 @@ function renderDetentionDates(){const box=document.getElementById('detDateArea')
 function selectDetentionDate(key){state.detentionDate=key;renderDetentionDates()}
 async function submitDetention(lunch){clearAllInvalid();if(!selectedIds().length)return toast('Choose a student.',true);const reason=document.getElementById('detReason'),other=document.getElementById('detOther'),report=document.getElementById('detReportTo');if(!reason.value)return invalidStop(reason,'Reason is required.');if(reason.value==='Other'&&!other.value.trim())return invalidStop(other,'Enter the Other reason.');if(!report.value.trim())return invalidStop(report,'Report To is required.');if(!state.bulk&&!state.detentionDate)return toast('Choose a detention date.',true);await submitLane({workflow:lunch?'LUNCH_DET':'DET',bulk:state.bulk,studentIds:selectedIds(),data:{reason:reason.value,otherReason:other.value.trim(),issuedByUsername:document.getElementById('detIssuedBy').value,reportTo:report.value.trim(),detentionDate:state.bulk?'':state.detentionDate}})}
 
-function renderBus(){const v=state.laneValues.BUS;document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:false})}<div class="card"><h2>Activity Bus</h2><div class="form-row"><label>Approved By</label><select id="busApprovedBy" class="field" onchange="state.laneValues.BUS.approvedByUsername=this.value">${adultOptions(v.approvedByUsername)}</select></div><div id="busStudentStatus" class="bus-pending">Transportation lookup is intentionally not connected yet. The scanner, approver, and lane are ready for the Bus_Info wire when its final contract is stable.</div></div>`;updateSelectedStudentArea()}
-function renderBusStudentStatus(){const box=document.getElementById('busStudentStatus');if(!box)return;if(!state.student){box.textContent='Transportation lookup is intentionally not connected yet.';return}box.innerHTML=`<strong>${esc(state.student.firstName)} ${esc(state.student.lastName)}</strong><br>Student selected successfully. Bus_Info lookup / automatic print / honk audio are the only hanging wires.`}
+function activityBusEnabled(){return Boolean(window.PASSKIOSK_CONFIG&&window.PASSKIOSK_CONFIG.features&&window.PASSKIOSK_CONFIG.features.activityBusData)}
+
+function renderBus(){
+  const v=state.laneValues.BUS;
+  const ready=activityBusEnabled();
+  document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:false})}<div class="card"><h2>Activity Bus</h2><div class="form-row"><label>Approved By</label><select id="busApprovedBy" class="field" onchange="state.laneValues.BUS.approvedByUsername=this.value">${adultOptions(v.approvedByUsername)}</select></div><div id="busStudentStatus" class="bus-pending">${ready?'Scan or choose a student. Bus From transportation assignments will be checked automatically.':'Activity Bus data integration is staged but not enabled against the production backend yet.'}</div></div>`;
+  updateSelectedStudentArea();
+}
+
+async function renderBusStudentStatus(){
+  const box=document.getElementById('busStudentStatus');
+  if(!box)return;
+  if(!activityBusEnabled()){box.className='bus-pending';box.textContent='Activity Bus data integration is staged but not enabled against the production backend yet.';return}
+  if(!state.student){box.className='bus-pending';box.textContent='Scan or choose a student.';return}
+  if(state.busBusy)return;
+
+  state.busBusy=true;
+  box.className='bus-status bus-checking';
+  box.innerHTML=`<strong>${esc(state.student.firstName)} ${esc(state.student.lastName)}</strong><br><span class="small">Checking Bus_Info…</span>`;
+
+  let info;
+  try{
+    info=await server('getBusInfo',state.token,state.student.studentId);
+    state.busInfo=info;
+  }catch(err){
+    box.className='bus-status bus-error';
+    box.innerHTML=`<strong>BUS LOOKUP FAILED</strong><br>${esc(err.message||'Unable to read Bus_Info.')}`;
+    state.busBusy=false;
+    return;
+  }
+  state.busBusy=false;
+
+  if(!info||!Array.isArray(info.assignments)||!info.assignments.length){
+    playBusAlertTone();
+    box.className='bus-status bus-error';
+    box.innerHTML=`<strong>NO BUS INFO ON FILE</strong><br><span class="small">No usable Bus From assignment was found for ${esc(state.student.firstName)} ${esc(state.student.lastName)}.</span>`;
+    scheduleBusReset(3000);
+    return;
+  }
+
+  if(info.alreadyScannedToday){
+    playBusAlertTone();
+    armBusDuplicateOverride(info);
+    box.className='bus-status bus-warning';
+    box.innerHTML=`<strong>ALREADY SCANNED TODAY</strong><div class="small bus-instruction">Scan or select this same student again within 5 seconds to record a duplicate.</div>${busAssignmentsHtml(info.assignments)}${info.priorTransactionId?`<div class="small muted">Earlier transaction: ${esc(info.priorTransactionId)}</div>`:''}`;
+    return;
+  }
+
+  await submitBusPass(false);
+}
+
+async function submitBusPass(allowDuplicate){
+  if(!activityBusEnabled()||!state.student||state.busBusy)return;
+  const box=document.getElementById('busStudentStatus');
+  if(!box)return;
+
+  const approved=document.getElementById('busApprovedBy');
+  const approvedByUsername=approved?approved.value:state.laneValues.BUS.approvedByUsername;
+  state.laneValues.BUS.approvedByUsername=approvedByUsername;
+
+  clearBusResetTimer();
+  state.busBusy=true;
+  box.className='bus-status bus-checking';
+  box.innerHTML=`<strong>${allowDuplicate?'Recording duplicate…':'Recording Activity Bus pass…'}</strong>`;
+
+  try{
+    const res=await server('submitBusWorkflow',state.token,{
+      deviceId:state.deviceId,
+      studentId:state.student.studentId,
+      approvedByUsername,
+      allowDuplicate:Boolean(allowDuplicate)
+    });
+
+    if(!res||res.ok!==true){
+      if(res&&res.code==='ALREADY_SCANNED_TODAY'){
+        const info={assignments:res.assignments||state.busInfo?.assignments||[],priorTransactionId:res.priorTransactionId||''};
+        playBusAlertTone();
+        armBusDuplicateOverride(info);
+        box.className='bus-status bus-warning';
+        box.innerHTML=`<strong>ALREADY SCANNED TODAY</strong><div class="small bus-instruction">Scan or select this same student again within 5 seconds to record a duplicate.</div>${busAssignmentsHtml(info.assignments)}`;
+        return;
+      }
+      if(res&&res.code==='NO_BUS_INFO'){
+        playBusAlertTone();
+        box.className='bus-status bus-error';
+        box.innerHTML='<strong>NO BUS INFO ON FILE</strong><br><span class="small">No usable Bus From assignment was found.</span>';
+        scheduleBusReset(3000);
+        return;
+      }
+      throw new Error(res&&res.message?res.message:'Activity Bus transaction was not recorded.');
+    }
+
+    state.busInfo=res;
+    state.busOverride=null;
+    box.className='bus-status bus-success';
+    box.innerHTML=`<strong>${res.duplicate?'DUPLICATE RECORDED':'ACTIVITY BUS PASS RECORDED'}</strong><div class="small">${esc(res.studentName||'Student')} · ${esc(res.transactionId||'')}</div>${busAssignmentsHtml(res.assignments||[])}`;
+    scheduleBusReset(2500);
+  }catch(err){
+    box.className='bus-status bus-error';
+    box.innerHTML=`<strong>NOT RECORDED</strong><br>${esc(err.message||'Activity Bus submission failed.')}`;
+  }finally{
+    state.busBusy=false;
+  }
+}
+
+function armBusDuplicateOverride(info){
+  clearBusResetTimer();
+  state.busOverride={
+    studentId:state.student?state.student.studentId:'',
+    priorTransactionId:String(info&&info.priorTransactionId||''),
+    expiresAt:Date.now()+5000
+  };
+  state.busResetTimer=setTimeout(()=>{
+    if(state.lane!=='BUS')return;
+    state.busOverride=null;
+    resetBusLaneStudent();
+  },5000);
+}
+
+function busAssignmentsHtml(assignments){
+  const rows=Array.isArray(assignments)?assignments:[];
+  if(!rows.length)return '';
+  return `<div class="bus-assignment-list">${rows.map((a,i)=>`<div class="bus-assignment"><div class="bus-assignment-head">${rows.length>1?`Assignment ${i+1} · `:''}${esc(a.route||'Route not listed')}</div><div>${esc(a.run||'')}</div><div class="small">Drop-off: ${esc(a.dropoffAddress||'')}</div><div class="small">${esc(a.dropoffTime||'')}${a.days?` · ${esc(a.days)}`:''}</div></div>`).join('')}</div>`;
+}
+
+function scheduleBusReset(ms){
+  clearBusResetTimer();
+  state.busResetTimer=setTimeout(()=>{
+    if(state.lane==='BUS')resetBusLaneStudent();
+  },ms);
+}
+
+function clearBusResetTimer(){
+  if(state.busResetTimer){clearTimeout(state.busResetTimer);state.busResetTimer=null}
+}
+
+function resetBusLaneStudent(){
+  clearBusResetTimer();
+  state.student=null;
+  state.studentDetails=null;
+  state.busInfo=null;
+  state.busOverride=null;
+  state.busBusy=false;
+  if(state.lane==='BUS')renderBus();
+}
+
+function playBusAlertTone(){
+  try{
+    const AudioCtx=window.AudioContext||window.webkitAudioContext;
+    if(!AudioCtx)return;
+    const ctx=new AudioCtx();
+    [0,0.2].forEach((delay,index)=>{
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.type='square';
+      osc.frequency.value=index===0?220:180;
+      gain.gain.setValueAtTime(0.08,ctx.currentTime+delay);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime+delay);
+      osc.stop(ctx.currentTime+delay+0.15);
+    });
+    setTimeout(()=>ctx.close().catch(()=>{}),500);
+  }catch(_){ }
+}
 
 async function renderSettings(){document.getElementById('workspace').innerHTML=`<div class="card"><h2>Settings</h2><div class="section-title">PRINTER</div><div id="settingsPrinters" class="settings-printers"></div></div><div class="card"><h2>Recently Sent — Last 5 Minutes</h2><div id="recentJobs"><div class="small muted">Loading…</div></div></div><div class="card"><button class="danger-btn" onclick="logout()">Sign Out</button></div>`;renderSettingsPrinters();await loadRecentJobs()}
 function renderSettingsPrinters(){const box=document.getElementById('settingsPrinters');if(!box)return;box.innerHTML=(state.bootstrap.printers||[]).map(p=>`<button class="settings-printer ${p.key===state.currentPrinter.key?'current':''}" onclick="setPrinter('${p.key}')">${esc(p.friendlyName)}</button>`).join('')}

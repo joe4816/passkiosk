@@ -21,7 +21,7 @@ may be submitted per email. The limit is checked before recording.
 PDFs include resolved destinations/delivery classes, selected When/time,
 detention date and directions, adult attribution and available signature image,
 and all Activity Bus assignments and duplicate audit details. Excused is shown
-only if the transaction schema actually contains it; it is never inferred from
+only when a boolean was saved on the transaction; it is never inferred from
 Reason. Missing signature images are visibly labelled.
 
 Emails go to the **session operator**, not the selected Requested By / Issued By /

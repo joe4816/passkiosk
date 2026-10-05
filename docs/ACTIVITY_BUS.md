@@ -203,3 +203,14 @@ Only after the Apps Script deployment containing the bus integration is live:
 11. Switch back to single-student mode and verify the deliberate duplicate rescan still works.
 
 Printing remains disabled/unrelated during these tests.
+
+## Client reliability — 2026-10-05
+
+- Lookup, authorization, bulk completion, and reset timers belong to the lane/student context that started them. Late responses cannot authorize a newly selected student or reset a newer basket after leaving and returning to BUS.
+- A backend authorization already in flight is not canceled by navigation. New BUS writes remain blocked until it settles; the response cannot repaint an unrelated screen.
+- Camera frames seen while BUS is busy do not consume the next QR. Held-code release protection remains intact. Changing lanes closes the current camera stream.
+- A failed or malformed submission response is **recording not confirmed**, not proof that nothing was written. Check Transactions before retrying; no automatic replay occurs.
+- Bulk response counts and student IDs must reconcile to the submitted basket before it is cleared. Invalid or incomplete responses retain the basket and display the uncertainty warning.
+- Automated synthetic-data regression checks: `node tests/bus-reliability.test.cjs` and `node tests/bus-bulk.test.cjs`. These are local/client checks, not a claim of live Apps Script deployment or physical printer testing.
+
+Activity Bus remains feature-gated off until the deployed backend passes its verification gate. Printing remains parked.

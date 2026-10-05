@@ -30,7 +30,9 @@ jobs:
           node --check /tmp/BusIntegration.js
 
       - name: Check Activity Bus bulk behavior
-        run: node tests/bus-bulk.test.cjs
+        run: |
+          node tests/bus-bulk.test.cjs
+          node tests/bus-reliability.test.cjs
 
       - name: Validate manifest and referenced static files
         run: |

@@ -1,6 +1,6 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.5-bus-bulk',
+  version: '0.3.6-bus-reliability',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: false,

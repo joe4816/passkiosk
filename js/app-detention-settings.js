@@ -8,6 +8,15 @@ async function submitDetention(lunch){clearAllInvalid();if(!selectedIds().length
 
 function activityBusEnabled(){return Boolean(window.PASSKIOSK_CONFIG&&window.PASSKIOSK_CONFIG.features&&window.PASSKIOSK_CONFIG.features.activityBusData)}
 
+function busContext(){
+  return {epoch:state.busEpoch,token:state.token,bulk:state.bulk,
+    studentId:state.student?state.student.studentId:''};
+}
+function busContextIsCurrent(context){
+  return state.lane==='BUS'&&state.busEpoch===context.epoch&&state.token===context.token&&
+    state.bulk===context.bulk&&(state.student?state.student.studentId:'')===context.studentId;
+}
+
 function renderBus(){
   const v=state.laneValues.BUS;
   const ready=activityBusEnabled();
@@ -21,7 +30,8 @@ async function renderBusStudentStatus(){
   if(!activityBusEnabled()){box.className='bus-pending';box.textContent='Activity Bus data integration is staged but not enabled against the production backend yet.';return}
   if(state.bulk)return;
   if(!state.student){box.className='bus-pending';box.textContent='Scan or choose a student.';return}
-  if(state.busBusy)return;
+  if(state.busBusy||state.busWritePending)return;
+  const context=busContext();
 
   state.busBusy=true;
   box.className='bus-status bus-checking';
@@ -29,9 +39,14 @@ async function renderBusStudentStatus(){
 
   let info;
   try{
-    info=await server('getBusInfo',state.token,state.student.studentId);
+    info=await server('getBusInfo',context.token,context.studentId);
+    if(!busContextIsCurrent(context))return;
+    if(!info||info.ok!==true||info.studentId!==context.studentId||!Array.isArray(info.assignments)){
+      throw new Error('Activity Bus lookup response could not be verified.');
+    }
     state.busInfo=info;
   }catch(err){
+    if(!busContextIsCurrent(context))return;
     box.className='bus-status bus-error';
     box.innerHTML=`<strong>BUS LOOKUP FAILED</strong><br>${esc(err.message||'Unable to read Bus_Info.')}`;
     state.busBusy=false;
@@ -59,27 +74,30 @@ async function renderBusStudentStatus(){
 }
 
 async function submitBusPass(allowDuplicate){
-  if(!activityBusEnabled()||state.bulk||!state.student||state.busBusy)return;
+  if(!activityBusEnabled()||state.bulk||!state.student||state.busBusy||state.busWritePending)return;
   const box=document.getElementById('busStudentStatus');
   if(!box)return;
 
+  const context=busContext();
   const approved=document.getElementById('busApprovedBy');
   const approvedByUsername=approved?approved.value:state.laneValues.BUS.approvedByUsername;
   state.laneValues.BUS.approvedByUsername=approvedByUsername;
 
   clearBusResetTimer();
   state.busBusy=true;
+  state.busWritePending=true;
   box.className='bus-status bus-checking';
   box.innerHTML=`<strong>${allowDuplicate?'Recording duplicate…':'Recording Activity Bus pass…'}</strong>`;
 
   try{
-    const res=await server('submitBusWorkflow',state.token,{
+    const res=await server('submitBusWorkflow',context.token,{
       deviceId:state.deviceId,
-      studentId:state.student.studentId,
+      studentId:context.studentId,
       approvedByUsername,
       allowDuplicate:Boolean(allowDuplicate)
     });
 
+    if(!busContextIsCurrent(context))return;
     if(!res||res.ok!==true){
       if(res&&res.code==='ALREADY_SCANNED_TODAY'){
         const info={assignments:res.assignments||state.busInfo?.assignments||[],priorTransactionId:res.priorTransactionId||''};
@@ -99,38 +117,50 @@ async function submitBusPass(allowDuplicate){
       throw new Error(res&&res.message?res.message:'Activity Bus transaction was not recorded.');
     }
 
+    if(res.studentId!==context.studentId||!res.transactionId||!Array.isArray(res.assignments)){
+      throw new Error('Activity Bus submission response could not be verified.');
+    }
     state.busInfo=res;
     state.busOverride=null;
     box.className='bus-status bus-success';
     box.innerHTML=`<strong>${res.duplicate?'DUPLICATE RECORDED':'ACTIVITY BUS PASS RECORDED'}</strong><div class="small">${esc(res.studentName||'Student')} · ${esc(res.transactionId||'')}</div>${busAssignmentsHtml(res.assignments||[])}`;
     scheduleBusReset(2500);
   }catch(err){
+    if(!busContextIsCurrent(context))return;
+    state.busOverride=null;
     box.className='bus-status bus-error';
-    box.innerHTML=`<strong>NOT RECORDED</strong><br>${esc(err.message||'Activity Bus submission failed.')}`;
+    box.innerHTML=`<strong>RECORDING NOT CONFIRMED</strong><br>${esc(err.message||'Activity Bus submission was interrupted.')}<div class="small">Check Transactions before retrying. The server may have recorded this authorization.</div>`;
   }finally{
-    state.busBusy=false;
+    state.busWritePending=false;
+    if(busContextIsCurrent(context))state.busBusy=false;
   }
 }
 
 async function submitBusBulk(){
-  if(!activityBusEnabled()||!state.bulk||state.submitting||state.busBusy)return;
+  if(!activityBusEnabled()||!state.bulk||state.submitting||state.busBusy||state.busWritePending)return;
   const ids=selectedIds();
   if(!ids.length)return toast('Choose a student.',true);
+  const context=busContext();
   const approved=document.getElementById('busApprovedBy');
   const approvedByUsername=approved?approved.value:state.laneValues.BUS.approvedByUsername;
   state.laneValues.BUS.approvedByUsername=approvedByUsername;
   clearBusResetTimer();
   state.busOverride=null;
   state.submitting=true;
+  state.busWritePending=true;
   const button=document.querySelector('#workspace .submit-row .primary');
   if(button){button.disabled=true;button.textContent='Sending…'}
   try{
-    const res=await server('submitBusWorkflow',state.token,{deviceId:state.deviceId,
+    const res=await server('submitBusWorkflow',context.token,{deviceId:state.deviceId,
       bulk:true,studentIds:ids,approvedByUsername});
-    if(!res||res.ok!==true||res.bulk!==true||!Array.isArray(res.created)||!Array.isArray(res.errors)){
+    if(!res||res.ok!==true||res.bulk!==true||!res.batchRoot||!Array.isArray(res.created)||!Array.isArray(res.errors)||
+        res.createdCount!==res.created.length||res.errorCount!==res.errors.length||
+        res.createdCount+res.errorCount!==new Set(ids).size||
+        new Set([...res.created,...res.errors].map(r=>r.studentId)).size!==new Set(ids).size||
+        [...res.created,...res.errors].some(r=>!ids.includes(r.studentId))){
       throw new Error('Activity Bus bulk response could not be verified. Check Transactions before trying again.');
     }
-    if(state.lane==='BUS'&&state.bulk){
+    if(busContextIsCurrent(context)){
       resetAfterSend();
       const box=document.getElementById('busStudentStatus');
       box.className='bus-status '+(res.errorCount?'bus-warning':'bus-success');
@@ -139,9 +169,10 @@ async function submitBusBulk(){
     if(res.errorCount)playBusAlertTone();
     toast(`${res.createdCount} recorded${res.errorCount?`; ${res.errorCount} require attention.`:'.'}`,Boolean(res.errorCount));
   }catch(err){
-    toast(err.message||'Activity Bus bulk submission failed. Check Transactions before retrying.',true,7000);
+    toast((err.message||'Activity Bus bulk submission was interrupted.')+' Recording is not confirmed; check Transactions before retrying.',true,7000);
   }finally{
     state.submitting=false;
+    state.busWritePending=false;
     if(button&&button.isConnected){button.disabled=false;button.textContent='Send'}
   }
 }
@@ -167,8 +198,9 @@ function busAssignmentsHtml(assignments){
 
 function scheduleBusReset(ms){
   clearBusResetTimer();
+  const context=busContext();
   state.busResetTimer=setTimeout(()=>{
-    if(state.lane==='BUS')resetBusLaneStudent();
+    if(busContextIsCurrent(context))resetBusLaneStudent();
   },ms);
 }
 
@@ -179,8 +211,10 @@ function clearBusResetTimer(){
 
 function startBusCountdown(seconds,onExpire,cameraMessage){
   clearBusResetTimer();
+  const context=busContext();
   const end=Date.now()+seconds*1000;
   const update=()=>{
+    if(!busContextIsCurrent(context))return;
     const remaining=Math.max(0,Math.ceil((end-Date.now())/1000));
     const el=document.getElementById('busCountdown');
     if(el)el.textContent=String(remaining);
@@ -192,12 +226,14 @@ function startBusCountdown(seconds,onExpire,cameraMessage){
   update();
   state.busCountdownTimer=setInterval(update,200);
   state.busResetTimer=setTimeout(()=>{
+    if(!busContextIsCurrent(context))return;
     clearBusResetTimer();
     if(typeof onExpire==='function')onExpire();
   },seconds*1000+25);
 }
 
 function resetBusLaneStudent(){
+  state.busEpoch++;
   clearBusResetTimer();
   state.student=null;
   state.studentDetails=null;
@@ -218,7 +254,7 @@ async function handleBusCameraStudent(student){
     return;
   }
 
-  if(state.busBusy){
+  if(state.busBusy||state.busWritePending||state.submitting){
     const status=document.getElementById('cameraStatus');
     if(status)status.textContent='Still processing the previous Activity Bus scan…';
     return;
@@ -241,7 +277,9 @@ async function handleBusCameraStudent(student){
   state.student=student;
   state.studentDetails={};
   updateSelectedStudentArea();
+  const context=busContext();
   await renderBusStudentStatus();
+  if(!busContextIsCurrent(context))return;
 
   const status=document.getElementById('cameraStatus');
   if(!status)return;

@@ -1,9 +1,9 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.10-pdf-email',
+  version: '0.3.11-explicit-excused',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
-    explicitExcused: false,
+    explicitExcused: true,
     activityBusData: false
   }),
   // Filled after the secure Apps Script bridge deployment is created.

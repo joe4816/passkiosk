@@ -48,6 +48,8 @@ This deliberately permits a source row to preserve an additional morning assignm
 
 `Sped` is informational only. It is not transportation eligibility.
 
+PassKiosk still requires the student to exist in the current Q1 Master/student index before a Bus_Info lookup is accepted. A transportation-only StudentId that is not present in the current student source is ignored rather than becoming a selectable PassKiosk student.
+
 ## Source audit — 2026-10-04
 
 The live `Bus_Info` tab was checked against this contract before integration work continued:

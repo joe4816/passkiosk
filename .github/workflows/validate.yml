@@ -29,7 +29,10 @@ jobs:
           node --check /tmp/SecureRpc.js
           node --check /tmp/BusIntegration.js
 
-      - name: Check Activity Bus bulk behavior\n        run: node tests/bus-bulk.test.cjs\n\n      - name: Validate manifest and referenced static files
+      - name: Check Activity Bus bulk behavior
+        run: node tests/bus-bulk.test.cjs
+
+      - name: Validate manifest and referenced static files
         run: |
           python - <<'PY'
           import json

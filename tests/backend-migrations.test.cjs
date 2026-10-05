@@ -36,7 +36,8 @@ const state={counts:{},studentDates:{}};const first=c.buildDetentionAvailability
 const session={username:'operator',displayName:'Operator',deviceId:'D'};
 const pass=(data,id='PK-TEST',bulk=false)=>c.buildTransaction_(id,new Date(),session,'PASS',student,{from:'Office',toOverride:'Class',...data},config(),null,bulk);
 assert.equal(pass({excused:true,reason:'Unrelated'}).Excused,true);
-for(const value of [false,undefined,null,'true','false',1,0])assert.equal(pass({excused:value,reason:'Excused'}).Excused,false);
+assert.equal(pass({excused:false,reason:'Excused'}).Excused,false);
+for(const value of [undefined,null,'true','false',1,0])assert.throws(()=>pass({excused:value,reason:'Excused'}),err=>err.code==='MISSING_EXCUSED');
 assert.equal(pass({excused:true,reason:'Other',otherReason:'Explanation'})['Reason(s)'],'Explanation');
 const tx=pass({excused:true,toOverride:''});assert.equal(tx.To,'Rm 101');assert.equal(tx['Session Username'],'operator');
 const bulkRows=[pass({excused:true},'PK-B-01',true),pass({excused:true},'PK-B-02',true)];assert(bulkRows.every(x=>x.Excused===true));

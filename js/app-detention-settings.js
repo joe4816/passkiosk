@@ -199,6 +199,8 @@ async function handleBusCameraStudent(student){
     }
     clearBusResetTimer();
     state.busOverride=null;
+  }else{
+    clearBusResetTimer();
   }
 
   state.student=student;

@@ -15,3 +15,18 @@ Requirements:
 - Keep the optional Reason / Excused For value separate from the excused checkbox; a reason may be present whether or not the pass is marked excused.
 
 This requirement was captured from the live GitHub PassKiosk smoke test on 2026-10-02.
+
+
+## Implementation status
+
+The GitHub client now contains the explicit **Excused** control and sends a boolean `request.data.excused`, but the feature is intentionally gated off in `config.js` until the Apps Script backend persists an `Excused` field in the transaction snapshot.
+
+Current gate:
+
+```js
+features: {
+  explicitExcused: false
+}
+```
+
+Enable it only after the backend and the Transactions sheet both support the field. This prevents the UI from claiming an Excused status was saved when an older backend would silently discard it.

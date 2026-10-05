@@ -11,6 +11,7 @@ Add these repository files to the bound Apps Script project:
 - `apps-script/SecureRpc.gs`
 - `apps-script/Bridge.html`
 - `apps-script/BusIntegration.gs`
+- `apps-script/BusIntegration.gs`
 
 ## 2. Replace doGet
 
@@ -227,3 +228,47 @@ The backend rechecks duplicates while holding the script lock, so two kiosks can
 Rows with blank Bus From fields are not treated as home assignments. If the student has no usable Bus From assignment, the backend returns `NO_BUS_INFO`; the browser shows an alert and resets after three seconds.
 
 `Sped` is returned as informational source data only and is not used to allow or deny an Activity Bus transaction.
+
+
+## Activity Bus backend activation
+
+Activity Bus lookup and transaction recording are implemented in `apps-script/BusIntegration.gs` and exposed through the current `SecureRpc.gs` allowlist.
+
+The Helper sheet is already structured to supply:
+
+- `Student Spreadsheet ID`
+- `Bus Sheet`
+
+The Activity Bus source contract is the normalized `Bus_Info` tab described in `docs/ACTIVITY_BUS.md`.
+
+Before enabling the public client feature flag, the Transactions sheet must contain these headers:
+
+- `Bus Route(s)`
+- `Bus Drop-off(s)`
+- `Bus Assignment Count`
+- `Bus Scan Type`
+- `Duplicate Of Transaction ID`
+- `Bus Snapshot`
+
+The current PassKiosk sheet received the four additive audit columns `Bus Assignment Count`, `Bus Scan Type`, `Duplicate Of Transaction ID`, and `Bus Snapshot` on 2026-10-04. Existing rows are unchanged.
+
+After adding `BusIntegration.gs` to the bound Apps Script project, run:
+
+`testBusIntegration_()`
+
+It must confirm both source and transaction headers before the client gate is enabled.
+
+Activity Bus deliberately uses its own `submitBusWorkflow` RPC during this phase. This avoids changing the legacy `submitWorkflow_` path or the print worker while physical printing is parked.
+
+The staged workflow records BUS transactions only. It does not create a `Print_Jobs` row.
+
+When the Apps Script deployment containing this file is live, set:
+
+```javascript
+features: Object.freeze({
+  explicitExcused: false,
+  activityBusData: true
+})
+```
+
+Then perform the non-printing smoke tests in `docs/ACTIVITY_BUS.md`.

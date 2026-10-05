@@ -51,14 +51,30 @@ Printing remains a separate concern from transaction creation.
 
 ## Activity Bus
 
-The Activity Bus lane is intentionally scaffolded but not wired to `Bus_Info` yet.
+The transportation contract is now defined around the additive `Bus_Info` tab in the configured student-output workbook.
 
-The following remain deliberately disconnected until the transportation contract is finalized:
+The Activity Bus backend:
 
-- Bus_Info lookup
-- automatic Activity Bus printing
-- duplicate-scan override flow
-- honk MP3 behavior
+- looks up rows by canonical Student ID;
+- uses only valid **Bus From** assignments for the trip home;
+- preserves multiple valid assignments instead of collapsing them;
+- treats `Sped` as informational only, never as eligibility logic;
+- checks the Transactions sheet for an existing same-day BUS transaction;
+- records Approved By, signature reference, route/run, drop-off address/time/days, and duplicate audit information;
+- does **not** create a Print_Jobs row yet.
+
+The browser lane is scan-driven:
+
+1. scan/select student;
+2. look up Bus_Info;
+3. no usable Bus From assignment -> visible/audible error, reset after 3 seconds;
+4. valid first scan -> record the Activity Bus transaction;
+5. already scanned today -> warning and 5-second rescan window;
+6. second scan of the same student inside that window -> record a deliberate duplicate.
+
+The client feature flag stays off until `apps-script/BusIntegration.gs` and the updated secure RPC are installed in the production Apps Script project.
+
+Physical Activity Bus printing remains deliberately separate.
 
 ## Public repository rule
 

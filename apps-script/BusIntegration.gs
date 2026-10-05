@@ -28,6 +28,15 @@ const PK_BUS_REQUIRED_HEADERS = Object.freeze([
   'Bus From Assignment Count'
 ]);
 
+const PK_BUS_TRANSACTION_HEADERS = Object.freeze([
+  'Bus Route(s)',
+  'Bus Drop-off(s)',
+  'Bus Assignment Count',
+  'Bus Scan Type',
+  'Duplicate Of Transaction ID',
+  'Bus Snapshot'
+]);
+
 function getBusInfoForSession_(token, studentId) {
   requireSession_(token);
 
@@ -89,6 +98,8 @@ function submitBusWorkflow_(token, request) {
 
   const allowDuplicate = request.allowDuplicate === true ||
     Boolean(request.data && request.data.duplicateOverride === true);
+
+  assertBusTransactionHeaders_();
 
   const now = new Date();
   const lock = LockService.getScriptLock();
@@ -304,6 +315,18 @@ function findTodayBusTransactions_(studentId, cfg) {
   });
 }
 
+function assertBusTransactionHeaders_() {
+  const sheet = passSheet_().getSheetByName(PK.TRANSACTIONS_SHEET);
+  if (!sheet) throw new Error('Transactions sheet not found.');
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  const h = busHeaderIndex_(headers);
+
+  PK_BUS_TRANSACTION_HEADERS.forEach(function(name) {
+    if (h[name] == null) throw new Error('Transactions is missing Activity Bus header: ' + name);
+  });
+}
+
 function formatBusSnapshot_(assignments) {
   return assignments.map(function(a, index) {
     const pieces = [
@@ -383,6 +406,7 @@ function testBusIntegration_() {
     busSheet: cfg.sources.busSheet,
     dataRows: Math.max(0, sheet.getLastRow() - 1),
     requiredHeadersPresent: true,
+    transactionHeadersPresent: true,
     missingRecommendedTransactionHeaders: missingAuditHeaders
   };
 }

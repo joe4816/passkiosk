@@ -18,5 +18,27 @@ function closeConfirm(){state.pendingReprint=null;document.getElementById('confi
 async function confirmReprint(){const job=state.pendingReprint;if(!job)return;try{await server('reprintJob',state.token,state.deviceId,job.printJobId);closeConfirm();toast('Reprint queued for '+state.currentPrinter.friendlyName);await loadRecentJobs()}catch(err){toast(err.message,true)}}
 async function logout(){try{await server('signOut',state.token)}catch(_){ }location.reload()}
 
-async function submitLane(request){try{request.deviceId=state.deviceId;const res=await server('submitWorkflow',state.token,request);if(res.errorCount)toast(`${res.createdCount} created; ${res.errorCount} require attention.`,true);else toast(`${res.createdCount} sent to the print queue.`);resetAfterSend()}catch(err){toast(err.message,true)}}
+async function submitLane(request){
+  if(state.submitting)return;
+  state.submitting=true;
+  const submitButtons=[...document.querySelectorAll('#workspace .submit-row .primary')];
+  submitButtons.forEach(b=>{b.disabled=true;b.dataset.originalText=b.textContent;b.textContent='Sending…'});
+  try{
+    request.deviceId=state.deviceId;
+    const res=await server('submitWorkflow',state.token,request);
+    if(res.errorCount)toast(`${res.createdCount} created; ${res.errorCount} require attention.`,true);
+    else toast(`${res.createdCount} sent.`);
+    resetAfterSend();
+  }catch(err){
+    toast(err.message,true);
+  }finally{
+    state.submitting=false;
+    submitButtons.forEach(b=>{
+      if(!b.isConnected)return;
+      b.disabled=false;
+      b.textContent=b.dataset.originalText||'Send';
+      delete b.dataset.originalText;
+    });
+  }
+}
 function resetAfterSend(){const lane=state.lane,wasBulk=state.bulk;state.student=null;state.studentDetails=null;state.basket=[];state.detentionAvailability=null;state.requestDeliveryMode='AUTO';state.requestDeliveryPeriod='';state.requestWhen='';state.detentionDate='';state.bulk=wasBulk;if(lane==='PASS')renderPass();if(lane==='RQST')renderRequest();if(lane==='DET')renderDetention(false);if(lane==='LUNCH_DET')renderDetention(true);if(lane==='BUS')renderBus()}

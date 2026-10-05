@@ -57,6 +57,8 @@ function dispatchPassKioskRpc_(fn, args) {
     case 'getBootstrapData': return getBootstrapData_(...a);
     case 'getStudentDetails': return getStudentDetails_(...a);
     case 'getDetentionAvailability': return getDetentionAvailability_(...a);
+    case 'getBusInfo': return getBusInfoForSession_(...a);
+    case 'submitBusWorkflow': return submitBusWorkflow_(...a);
     case 'submitWorkflow': return submitWorkflow_(...a);
     case 'getRecentPrintJobs': return getRecentPrintJobs_(...a);
     case 'reprintJob': return reprintJob_(...a);
@@ -107,6 +109,14 @@ function getDetentionAvailability(token, detentionType, studentId) {
 
 function submitWorkflow(token, request) {
   return staffRpc('submitWorkflow', [token, request]);
+}
+
+function getBusInfo(token, studentId) {
+  return staffRpc('getBusInfo', [token, studentId]);
+}
+
+function submitBusWorkflow(token, request) {
+  return staffRpc('submitBusWorkflow', [token, request]);
 }
 
 function getRecentPrintJobs(token, deviceId) {

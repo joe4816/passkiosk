@@ -8,8 +8,8 @@
  * - one credential is authorized for one endpoint ID;
  * - the endpoint may claim only Print_Jobs already stamped for that endpoint.
  *
- * Receipt Printer 1 is the first production route. Receipt Printer 2 is
- * deliberately not enabled here yet.
+ * All six installed CUPS destinations share this authenticated Chromebook endpoint.
+ * Only bindings verified ready by the bridge may be claimed.
  */
 
 const PK_PRINTHUB = Object.freeze({
@@ -19,15 +19,12 @@ const PK_PRINTHUB = Object.freeze({
   CLAIM_LEASE_SECONDS: 60,
   POLL_AFTER_MS: 2500,
   ROUTES: Object.freeze({
-    RECEIPT1: Object.freeze({
-      routeId: 'RECEIPT1',
-      routeLabel: 'Receipt Printer 1',
-      endpointId: 'PH-FRONT-RECEIPT-01',
-      endpointType: 'CHROMEOS_BROWSER',
-      bindingKey: 'RECEIPT1',
-      mediaProfileId: '80MM_RECEIPT',
-      rendererId: 'PASSKIOSK_RECEIPT'
-    })
+    RECEIPT1: Object.freeze({routeId:'RECEIPT1',routeLabel:'Receipt Printer 1',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'RECEIPT1',mediaProfileId:'80MM_RECEIPT',rendererId:'PASSKIOSK_RECEIPT'}),
+    AP_COPIER: Object.freeze({routeId:'AP_COPIER',routeLabel:'AP Office Copier',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'AP_COPIER',mediaProfileId:'STATEMENT',rendererId:'PASSKIOSK_PDF'}),
+    MAIN_COPIER: Object.freeze({routeId:'MAIN_COPIER',routeLabel:'Main Office Copier',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'MAIN_COPIER',mediaProfileId:'STATEMENT',rendererId:'PASSKIOSK_PDF'}),
+    AP_TARDY: Object.freeze({routeId:'AP_TARDY',routeLabel:'AP Office Tardy Printer',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'AP_TARDY',mediaProfileId:'80MM_RECEIPT',rendererId:'PASSKIOSK_RECEIPT'}),
+    BACK_OFFICE: Object.freeze({routeId:'BACK_OFFICE',routeLabel:'Back Office',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'BACK_OFFICE',mediaProfileId:'B6',rendererId:'PASSKIOSK_PDF'}),
+    RECEIPT2: Object.freeze({routeId:'RECEIPT2',routeLabel:'Receipt Printer 2',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'RECEIPT2',mediaProfileId:'80MM_RECEIPT',rendererId:'PASSKIOSK_RECEIPT'})
   })
 });
 
@@ -187,6 +184,9 @@ function printHubEndpointPoll_(body) {
   assertPrintHubHeaders_();
 
   const maxJobs = Math.min(Math.max(Number(body && body.maxJobs || 1), 1), 5);
+  // Older bridge v0.5.0 may only claim the original receipt route.
+  const readyKeys = new Set(Array.isArray(body && body.readyBindingKeys) ?
+    body.readyBindingKeys.map(String).filter(key=>!!PK_PRINTHUB.ROUTES[key]) : ['RECEIPT1']);
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
@@ -212,6 +212,9 @@ function printHubEndpointPoll_(body) {
       const mediaProfileId = String(row[h['Media Profile ID']] || '');
       const rendererId = String(row[h['Renderer ID']] || '');
       if (!routeId || !bindingKey || !mediaProfileId || !rendererId) continue;
+      const route = PK_PRINTHUB.ROUTES[routeId];
+      if (!route || !readyKeys.has(bindingKey) || route.bindingKey !== bindingKey ||
+          route.mediaProfileId !== mediaProfileId || route.rendererId !== rendererId) continue;
 
       const claimId = 'CLM-' + randomId_(16);
       const leaseExpires = new Date(now.getTime() + PK_PRINTHUB.CLAIM_LEASE_SECONDS * 1000);
@@ -422,7 +425,6 @@ function assertPrintHubHeaders_() {
   }
 }
 
-
 // Keep signature images in the authenticated worker response only.
 // Reuse the same Drive-backed signature resolver as PDF email output.
 function printHubPrintableTransaction_(tx) {
@@ -451,7 +453,6 @@ function printHubPrintableTransaction_(tx) {
   }
   return printable;
 }
-
 
 function verifyPrintHubReceiptPayload() {
   requireActiveCcsdAdult_();

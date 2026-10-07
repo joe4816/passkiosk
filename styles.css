@@ -125,5 +125,6 @@ button:focus-visible, .date-option:focus-visible { outline:3px solid var(--purpl
 #passToArea, #requestRouting, #detDateArea { scroll-margin-top:130px; }
 .lane-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .card .lane-title h2 { margin:0; }
-.sandwich-art { width:80px; height:48px; flex:none; color:#8a6b24; pointer-events:none; }
+.lane-title { flex-wrap:wrap; }
+.lunch-food-art { width:min(100%,360px); height:auto; aspect-ratio:6/1; object-fit:cover; flex:none; pointer-events:none; }
 @media(prefers-reduced-motion:reduce) { .loading-spinner { animation:none; } }

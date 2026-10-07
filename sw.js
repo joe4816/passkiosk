@@ -1,4 +1,4 @@
-const CACHE = 'passkiosk-shell-v0.3.15';
+const CACHE = 'passkiosk-shell-v0.3.16';
 const SHELL = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const SHELL = [
   './js/app-camera-utils.js',
   './manifest.webmanifest',
   './assets/passkiosk-icon.svg',
+  './assets/lunch-food-line-art.png',
   './vendor/jsQR.js'
 ];
 

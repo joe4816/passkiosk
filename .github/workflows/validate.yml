@@ -40,6 +40,7 @@ jobs:
           node tests/backend-migrations.test.cjs
           node tests/workflow-reliability.test.cjs
           node tests/pdf-email.test.cjs
+          node --test tests/printhub-payload.test.mjs tests/printer-routes.test.mjs
 
       - name: Validate manifest and referenced static files
         run: |

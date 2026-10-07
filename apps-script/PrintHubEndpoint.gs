@@ -232,6 +232,16 @@ function printHubEndpointPoll_(body) {
         continue;
       }
 
+      let printable;
+      try { printable = printHubPrintableTransaction_(tx); }
+      catch (_) {
+        setCellByHeader_(sheet, headers, r + 1, 'Status', 'FAILED');
+        setCellByHeader_(sheet, headers, r + 1, 'Completed At', now);
+        setCellByHeader_(sheet, headers, r + 1, 'Error Code', 'PRINT_PAYLOAD_UNAVAILABLE');
+        setCellByHeader_(sheet, headers, r + 1, 'Error Message', 'Could not prepare the stored signature or print details.');
+        continue;
+      }
+
       jobs.push({
         schemaVersion: 1,
         printJobId: String(row[h['Print Job ID']] || ''),
@@ -250,7 +260,7 @@ function printHubEndpointPoll_(body) {
           claimedAt: now.toISOString(),
           leaseExpiresAt: leaseExpires.toISOString()
         },
-        transaction: serializeRecord_(tx)
+        transaction: printable
       });
     }
 
@@ -410,4 +420,44 @@ function assertPrintHubHeaders_() {
   if (missing.length) {
     throw new Error('Print_Jobs is missing required PrintHub header(s): ' + missing.join(', '));
   }
+}
+
+
+// Keep signature images in the authenticated worker response only.
+// Reuse the same Drive-backed signature resolver as PDF email output.
+function printHubPrintableTransaction_(tx) {
+  const printable = serializeRecord_(tx);
+  const cfg = readHelperConfig_();
+  printable['School Name'] = cfg.sources.schoolName || '';
+  const username = tx['Approved By Username'] || tx['Issued By Username'] ||
+    tx['Requested By Username'] || tx['Session Username'];
+  let adult = null;
+  if (username) {
+    adult = getActiveAdultByUsername_(username);
+    if (adult && adult.displayName) {
+      const key = tx.Workflow === 'BUS' ? 'Approved By' :
+        tx.Workflow === 'RQST' ? 'Requested By' : 'Issued By';
+      printable[key] = adult.displayName;
+    }
+  }
+  const filename = String(tx['Signature File'] || (adult && adult.sig) || '').trim();
+  if (filename) {
+    const signature = signaturePayload_(filename, cfg);
+    if (!signature || !['image/png','image/jpeg'].includes(signature.mimeType || '') || !signature.base64) {
+      throw new Error('Stored signature image is unavailable for this print job.');
+    }
+    printable['Signature File'] = filename;
+    printable['Signature Payload'] = signature;
+  }
+  return printable;
+}
+
+
+function verifyPrintHubReceiptPayload() {
+  requireActiveCcsdAdult_();
+  const payload = printHubPrintableTransaction_({Workflow:'PASS', 'Session Username':'ROMOS'});
+  if (!payload['Signature Payload']) throw new Error('Stored signature is unavailable.');
+  console.log(JSON.stringify({ok:true, signatureIncluded:true,
+    signatureBytes:Math.floor(payload['Signature Payload'].base64.length * 3 / 4),
+    schoolNameIncluded:!!payload['School Name']}));
 }

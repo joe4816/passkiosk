@@ -8,7 +8,7 @@
  * - one credential is authorized for one endpoint ID;
  * - the endpoint may claim only Print_Jobs already stamped for that endpoint.
  *
- * All six installed CUPS destinations share this authenticated Chromebook endpoint.
+ * All seven installed CUPS destinations share this authenticated Chromebook endpoint.
  * Only bindings verified ready by the bridge may be claimed.
  */
 
@@ -24,6 +24,7 @@ const PK_PRINTHUB = Object.freeze({
     MAIN_COPIER: Object.freeze({routeId:'MAIN_COPIER',routeLabel:'Main Office Copier',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'MAIN_COPIER',mediaProfileId:'STATEMENT',rendererId:'PASSKIOSK_PDF'}),
     AP_TARDY: Object.freeze({routeId:'AP_TARDY',routeLabel:'AP Office Tardy Printer',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'AP_TARDY',mediaProfileId:'80MM_RECEIPT',rendererId:'PASSKIOSK_RECEIPT'}),
     BACK_OFFICE: Object.freeze({routeId:'BACK_OFFICE',routeLabel:'Back Office',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'BACK_OFFICE',mediaProfileId:'B6',rendererId:'PASSKIOSK_PDF'}),
+    CAFE_TARDY: Object.freeze({routeId:'CAFE_TARDY',routeLabel:'Cafe Tardy Printer',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'CAFE_TARDY',mediaProfileId:'80MM_RECEIPT',rendererId:'PASSKIOSK_RECEIPT'}),
     RECEIPT2: Object.freeze({routeId:'RECEIPT2',routeLabel:'Receipt Printer 2',endpointId:'PH-FRONT-RECEIPT-01',endpointType:'CHROMEOS_BROWSER',bindingKey:'RECEIPT2',mediaProfileId:'80MM_RECEIPT',rendererId:'PASSKIOSK_RECEIPT'})
   })
 });

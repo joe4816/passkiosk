@@ -1,4 +1,4 @@
-const CACHE = 'passkiosk-shell-v0.3.14';
+const CACHE = 'passkiosk-shell-v0.3.15';
 const SHELL = [
   './',
   './index.html',
@@ -43,3 +43,4 @@ self.addEventListener('fetch', event => {
       .catch(() => caches.match(event.request).then(r => r || caches.match('./index.html')))
   );
 });
+

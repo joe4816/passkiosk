@@ -100,3 +100,30 @@ button.suggestion:hover,button.suggestion:focus-visible{background:var(--purple-
 .email-notice button,.email-job button{min-height:44px;margin-top:8px}
 .email-job{padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 .email-job:last-child{border-bottom:0}
+
+
+/* Paper-form colours carry from each binder tab into its page. */
+#app { --sheet:#f2ecfb; background:var(--sheet); }
+#app[data-lane="PASS"], .nav button[data-lane="PASS"] { --sheet:#d8eef3; --tab-ink:#205467; }
+#app[data-lane="RQST"], .nav button[data-lane="RQST"] { --sheet:#e1edc7; --tab-ink:#3d571f; }
+#app[data-lane="BUS"], .nav button[data-lane="BUS"] { --sheet:#f7d6cf; --tab-ink:#7b3d38; }
+#app[data-lane="DET"], #app[data-lane="LUNCH_DET"], .nav button[data-lane="DET"], .nav button[data-lane="LUNCH_DET"] { --sheet:#fff0bb; --tab-ink:#6b5217; }
+#app[data-lane="SETTINGS"], .nav button[data-lane="SETTINGS"] { --sheet:#f2ecfb; --tab-ink:#49217f; }
+#app .topbar, #app .context-strip { background:var(--sheet); }
+.nav button[data-lane] { background:var(--sheet); color:var(--tab-ink); border-color:var(--tab-ink); }
+.nav button.active { background:var(--sheet); color:var(--tab-ink); box-shadow:inset 0 4px 0 var(--tab-ink); }
+.nav button.active::after { background:var(--sheet); }
+#app .card { background:rgba(255,255,255,.84); }
+#app .student-card { background:var(--sheet); border:1px solid var(--tab-ink,#ddd8e5); }
+button:active, .date-option:active, .route-box.clickable:active { filter:brightness(.91); }
+button:focus-visible, .date-option:focus-visible { outline:3px solid var(--purple); outline-offset:3px; }
+.lookup-status { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid var(--line); border-radius:11px; background:var(--sheet,#f2ecfb); color:var(--ink); }
+.loading-spinner { flex:none; width:20px; height:20px; border:3px solid #d1cbd8; border-top-color:var(--purple); border-radius:50%; animation:lookup-spin .8s linear infinite; }
+@keyframes lookup-spin { to { transform:rotate(360deg); } }
+.lookup-error { padding:12px; color:var(--danger); background:var(--danger-soft); border-radius:11px; }
+.lookup-error button { display:block; margin-top:8px; }
+#passToArea, #requestRouting, #detDateArea { scroll-margin-top:130px; }
+.lane-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.card .lane-title h2 { margin:0; }
+.sandwich-art { width:80px; height:48px; flex:none; color:#8a6b24; pointer-events:none; }
+@media(prefers-reduced-motion:reduce) { .loading-spinner { animation:none; } }

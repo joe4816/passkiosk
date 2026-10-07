@@ -1,6 +1,6 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.11-explicit-excused',
+  version: '0.3.15-responsive-lanes',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: true,
@@ -12,3 +12,4 @@ window.PASSKIOSK_CONFIG = Object.freeze({
   // #bridge=<deployment-url>&kiosk=<secret>
   bridgeUrl: 'https://script.google.com/a/macros/nv.ccsd.net/s/AKfycbxdaUwaVYjkjcQP1keD9RSUn1K2buIAoNLlpEyA0e40spIyXB7u2YuCLksOPu5oMzBsLA/exec'
 });
+

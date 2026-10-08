@@ -131,3 +131,5 @@ button:focus-visible, .date-option:focus-visible { outline:3px solid var(--purpl
 .detention-extras{border-top:1px solid #d5c985;margin-top:16px;padding-top:12px}
 .output-check{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-weight:700}
 .output-check input{width:20px;height:20px;flex:none;accent-color:#5d2da1}
+.google-signin{display:inline-block;text-decoration:none;min-height:44px;box-sizing:border-box;align-content:center}
+.app-build{margin-top:18px}

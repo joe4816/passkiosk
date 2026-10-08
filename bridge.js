@@ -197,6 +197,28 @@
     return settings.mode;
   }
 
+  async function signInUrl() {
+    const settings = await getSettings();
+    if (settings.mode !== 'staff') throw new Error('Google sign-in is for staff sessions.');
+    const url = new URL(buildIframeUrl(settings.bridgeUrl));
+    if (url.protocol !== 'https:' || url.hostname !== 'script.google.com') {
+      throw new Error('The Google sign-in destination is not configured correctly.');
+    }
+    return url.toString();
+  }
+
+  function reconnect() {
+    if (pending.size) throw new Error('Wait for the current request before reconnecting.');
+    if (iframe) iframe.remove();
+    iframe = null;
+    bridgeWindow = null;
+    bridgeOrigin = '';
+    readyPromise = null;
+    readyResolve = null;
+    readyReject = null;
+    return boot();
+  }
+
   function clearAuthorization() {
     localStorage.removeItem(STORAGE_KEY_URL);
     localStorage.removeItem(STORAGE_KEY_SECRET);
@@ -207,6 +229,9 @@
     ready: boot,
     call,
     mode,
+    signInUrl,
+    reconnect,
     clearAuthorization
   });
 })();
+

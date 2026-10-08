@@ -1,4 +1,5 @@
-const PK_BUILD='0.3.16-lunch-art';
+const PK_BUILD='0.3.18-visible-signin';
+let staffSignInUrl='', staffSignInPending=false, staffSignInBusy=false;
 const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,outputMode:'PRINT',pdfEmail:null,bulk:false,student:null,studentDetails:null,studentEpoch:0,studentLoading:false,studentLookupError:'',detentionEpoch:0,detentionLoading:false,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',submitting:false,busInfo:null,busOverride:null,busResetTimer:null,busCountdownTimer:null,busBusy:false,busEpoch:0,busWritePending:false,camera:{devices:[],selectedDeviceId:'',opening:false,requestId:0,stream:null,raf:null,lastCode:'',lastAt:0,lastSeenAt:0}};
 document.addEventListener('DOMContentLoaded',init);
 
@@ -6,21 +7,57 @@ async function init(){
   state.deviceId=getDeviceId();
   try{
     state.authMode=await PassKioskBridge.mode();
-    await PassKioskBridge.ready();
-    state.front=await server('getFrontDoorConfig');
-
     if(state.authMode==='staff'){
-      const profile=await server('getAuthenticatedProfile');
-      if(!profile||!profile.ok)throw new Error('Your CCSD account could not be identified in PassKiosk.');
-      state.identified=profile;
-      showPrinterSelection(false);
+      staffSignInUrl=await PassKioskBridge.signInUrl();
+      showStaffSignIn();
     }else{
+      await PassKioskBridge.ready();
+      state.front=await server('getFrontDoorConfig');
       showKioskIdentityPrompt();
     }
   }catch(err){
     showFrontDoorError(err.message||'PassKiosk backend is not available.');
   }
 }
+
+function showStaffSignIn(message=''){
+  const pane=document.getElementById('identityLoadingPane');
+  pane.classList.remove('hidden');
+  document.getElementById('identifyPane').classList.add('hidden');
+  document.getElementById('printerPane').classList.add('hidden');
+  pane.innerHTML='<div class="front-title">Sign in with your CCSD Google account</div>'+
+    '<div class="muted">Google opens in a separate tab. When you return, we’ll check your access automatically.</div>'+
+    (message?'<div class="lookup-error" role="alert">'+esc(message)+'</div>':'')+
+    '<div class="submit-row"><a class="primary google-signin" href="'+attr(staffSignInUrl)+'" target="_blank" rel="noopener" onclick="beginStaffSignIn()">'+(staffSignInPending?'Open Google sign-in again':'Continue with Google')+'</a></div>'+
+    (staffSignInPending?'<div class="submit-row"><button class="secondary" onclick="completeStaffSignIn()">I’m signed in — continue</button></div>':'')+
+    '<div class="small muted app-build">App '+PK_BUILD+'</div>';
+}
+function beginStaffSignIn(){
+  staffSignInPending=true;
+  // Let the link's native click open Google before repainting its parent.
+  setTimeout(()=>showStaffSignIn(),0);
+}
+async function completeStaffSignIn(){
+  if(state.authMode!=='staff'||staffSignInBusy)return;
+  staffSignInBusy=true;
+  const pane=document.getElementById('identityLoadingPane');
+  pane.innerHTML='<div class="front-title">Checking your access…</div>'+loadingHtml('Connecting your CCSD account to PassKiosk…');
+  try{
+    await PassKioskBridge.reconnect();
+    const profile=await server('getAuthenticatedProfile');
+    if(!profile||!profile.ok)throw new Error('Your signed-in CCSD account is not allowed to use PassKiosk.');
+    state.front=await server('getFrontDoorConfig');
+    state.identified=profile;
+    staffSignInPending=false;
+    showPrinterSelection(false);
+  }catch(err){
+    const raw=err.message||'Unable to check your access.';
+    const message=/backend did not respond|bridge could not load/i.test(raw)
+      ? 'Google sign-in has not connected to PassKiosk. Finish signing in in the Google tab, then continue here. If you already did, browser privacy settings or the school network may be blocking the connection.' : raw;
+    showStaffSignIn(message);
+  }finally{staffSignInBusy=false}
+}
+window.addEventListener?.('focus',()=>{if(staffSignInPending&&!staffSignInBusy)completeStaffSignIn()});
 function getDeviceId(){const k='PassKioskDeviceId';let id=localStorage.getItem(k);if(!id){id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'PKD-'+Date.now()+'-'+Math.random().toString(36).slice(2);localStorage.setItem(k,id)}return id}
 function server(fn,...args){return PassKioskBridge.call(fn,...args)}
 

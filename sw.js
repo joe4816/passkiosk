@@ -1,4 +1,4 @@
-const CACHE = 'passkiosk-shell-v0.3.17';
+const CACHE = 'passkiosk-shell-v0.3.18';
 const SHELL = [
   './',
   './index.html',

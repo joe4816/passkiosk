@@ -1,6 +1,6 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.17-period-detentions',
+  version: '0.3.18-visible-signin',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: true,

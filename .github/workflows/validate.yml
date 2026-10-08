@@ -17,6 +17,7 @@ jobs:
 
       - name: Check JavaScript syntax
         run: |
+          node --check js/native-staff-bridge.js
           node --check bridge.js
           node --check config.js
           node --check sw.js

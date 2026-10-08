@@ -12,7 +12,7 @@ function fixture(mode='staff'){
 test('staff sees Google sign-in before backend calls and no identity picker',async()=>{
   const f=fixture();await f.context.init();assert.deepEqual(f.calls,[]);
   assert.match(f.elements.identityLoadingPane.innerHTML,/Continue with Google/);
-  assert.match(f.elements.identityLoadingPane.innerHTML,/0.3.18-visible-signin/);
+  assert.match(f.elements.identityLoadingPane.innerHTML,/0.3.19-native-signin/);
   assert.equal(f.elements.identifyPane.classList.hidden,true);
   await f.context.completeStaffSignIn();
   assert.deepEqual(f.calls,['reconnect','getAuthenticatedProfile','getFrontDoorConfig','printers']);
@@ -44,4 +44,45 @@ test('reconnect clears a failed bridge boot rather than reusing a rejected promi
   listeners.message({origin:'https://example.com',source:{},data:{channel:'PASSKIOSK_RPC_V1',type:'ready'}});
   listeners.message({origin:'https://script.google.com',source:{},data:{channel:'PASSKIOSK_RPC_V1',type:'ready'}});assert.equal(await retry,true);
   assert.match(await b.signInUrl(),/^https:\/\/script.google.com\//);
+});
+
+
+test('staff sign-in continues in the same tab',async()=>{
+ const f=fixture();await f.context.init();
+ assert.match(f.elements.identityLoadingPane.innerHTML,/target="_top"/);
+ assert.doesNotMatch(f.elements.identityLoadingPane.innerHTML,/target="_blank"/);
+});
+test('native authenticated app checks access and proceeds without another sign-in',async()=>{
+ const f=fixture();f.context.window.PASSKIOSK_NATIVE_STAFF=true;
+ await f.context.init();assert.deepEqual(f.calls,['reconnect','getAuthenticatedProfile','getFrontDoorConfig','printers']);
+ assert.equal(f.elements.identifyPane.classList.hidden,true);
+});
+test('native denial stays on an actionable access error, never a blank bridge',async()=>{
+ const f=fixture();f.context.window.PASSKIOSK_NATIVE_STAFF=true;
+ f.context.server=async()=>{throw new Error('Your account is not active.')};
+ await f.context.init();assert.match(f.elements.identityLoadingPane.innerHTML,/not active/);
+ assert.match(f.elements.identityLoadingPane.innerHTML,/Retry access check/);
+ assert.doesNotMatch(f.elements.identityLoadingPane.innerHTML,/Open Google/);
+});
+test('embedded kiosk bridge does not start the staff app',async()=>{
+ const f=fixture();f.context.window.PASSKIOSK_EMBEDDED_BRIDGE=true;
+ await f.context.init();assert.deepEqual(f.calls,[]);
+});
+test('native transport calls staffRpc directly and propagates backend errors',async()=>{
+ const requests=[];let success,failure;
+ const runner={withSuccessHandler(fn){success=fn;return this},withFailureHandler(fn){failure=fn;return this},staffRpc(fn,args){requests.push([fn,args])}};
+ const c={window:{PASSKIOSK_NATIVE_STAFF:true},google:{script:{run:runner}},setTimeout,clearTimeout,console};
+ vm.createContext(c);vm.runInContext(fs.readFileSync(__dirname+'/../js/native-staff-bridge.js','utf8'),c);
+ const b=c.window.PassKioskBridge;assert.equal(await b.mode(),'staff');
+ const pending=b.call('getAuthenticatedProfile');success({ok:true});assert.equal((await pending).ok,true);
+ assert.equal(requests[0][0],'getAuthenticatedProfile');
+ const denied=b.call('getFrontDoorConfig');failure({message:'Not allowed'});await assert.rejects(denied,/Not allowed/);
+});
+test('generated Apps Script app contains valid scripts and preserves embedded RPC',()=>{
+ const html=fs.readFileSync(__dirname+'/../apps-script/StaffBridge.html','utf8');
+ const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+ assert.ok(scripts.length>8);for(const match of scripts)new vm.Script(match[1]);
+ assert.match(html,/window.parent===window.top/);
+ assert.match(html,/runner.kioskRpc/);assert.match(html,/staffRpc\(fn, args\)/);
+ assert.doesNotMatch(html,/<script defer src=/);
 });

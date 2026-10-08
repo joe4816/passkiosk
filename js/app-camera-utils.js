@@ -123,7 +123,7 @@ function markInvalid(el){if(el)el.classList.add('invalid')}function clearInvalid
 function toast(msg,isError=false,duration=3600){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(isError?' error':'');t.classList.remove('hidden');clearTimeout(toast._timer);toast._timer=setTimeout(()=>t.classList.add('hidden'),duration)}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}function attr(v){return esc(v)}
 
-if ('serviceWorker' in navigator) {
+if (!window.PASSKIOSK_NATIVE_STAFF && !window.PASSKIOSK_EMBEDDED_BRIDGE && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });

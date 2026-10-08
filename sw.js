@@ -8,6 +8,7 @@ const SHELL = [
   './js/app-core.js',
   './js/app-email.js',
   './js/app-pass-request.js',
+  './js/app-class-routing.js',
   './js/app-detention-settings.js',
   './js/app-camera-utils.js',
   './manifest.webmanifest',
@@ -45,4 +46,3 @@ self.addEventListener('fetch', event => {
   );
 });
 
-  './js/app-class-routing.js',

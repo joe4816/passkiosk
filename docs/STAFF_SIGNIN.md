@@ -1,13 +1,42 @@
-# Staff Google sign-in
+# Staff sign-in 0.3.19 — backend deployed, front door verification pending
 
-App build 0.3.18-visible-signin shows a visible Continue with Google link before staff backend calls. It opens the existing staff Apps Script deployment (`bridge=1`) in a separate top-level tab so Google can display its account/sign-in screens.
+The 0.3.18 separate-tab flow is defective in real use. The top-level Bridge page
+is intentionally blank and has no completion callback. Returning to GitHub
+retries a hidden authenticated iframe that can still fail after Google sign-in.
+No account denial is established by that timeout.
 
-The staff member returns to the app after Google sign-in. Returning focus checks access automatically; an explicit continue button is also available. The bridge is recreated for each reconnect attempt, so a previous timeout is recoverable.
+## Replacement
 
-The backend's existing getAuthenticatedProfile/staffRpc boundary derives identity from the authenticated CCSD Google account and requires an active adult record. Allowed staff proceed directly to output selection. No username input or second staff identity selection appears. Failed access checks remain on the sign-in screen and do not fall back to manual identity.
+The GitHub front door keeps a visible Continue with Google link, now in the same
+tab. Its existing bridge=1 deployment URL serves StaffBridge.html. Within the
+Google wrapper, the staff app starts directly, uses google.script.run.staffRpc,
+checks getAuthenticatedProfile, and proceeds to printer selection. There is no
+popup, return-to-GitHub callback, manual already-signed-in button, or second
+identity picker. The same app is served by Apps Script after authentication.
 
-Google may finish on a blank bridge page; the app explains that the staff member should return to its tab. Opening the Google tab does not itself prove sign-in or authorize access. Only the subsequent authenticated backend response completes sign-in.
+Every staff call still goes through requireActiveCcsdAdult_. No kiosk secret,
+client-selected username, or client assertion replaces Google authentication.
+The embedded kiosk bridge keeps its original message channel and kioskRpc path.
+Staff startup is suppressed when the Google wrapper itself is embedded.
 
-Managed unattended kiosk mode remains a separate existing keyed workflow, because it has no signed-in staff Google account. Printer routing, hub, bridge extension and backend deployments are unchanged.
+## Deployment order
 
-This fixes visible sign-in and reconnect recovery. Browser restrictions on authenticated cross-site frames or network blocking can still prevent the subsequent connection; the app explains this possibility rather than presenting the timeout as an access denial.
+1. Add generated apps-script/StaffBridge.html as HTML file StaffBridge in the
+   existing Apps Script project. Update SecureRpc.gs from this branch.
+2. Rebuild StaffBridge whenever the app changes with
+   `python scripts/build-staff-app.py` from the repository root.
+3. Update the existing web app deployment to a new version, keeping its URL,
+   execution identity, allowed audience, and permissions unchanged.
+4. Verify the top-level bridge URL loads the app and an allowed signed-in staff
+   account reaches printer selection. A disallowed account must see an access
+   error. Verify the embedded managed kiosk still responds.
+5. Only then merge/publish the same-tab GitHub front door.
+
+Automated tests cover both startup contexts, the same-tab link, direct staffRpc
+success/error propagation, access denial, no identity fallback, and generated
+script syntax. Physical printing is not part of the auth test.
+
+Backend deployment restored on 2026-10-08. StaffBridge and the page factory
+were deployed as app backend version 20; the unattended worker remains on its
+existing deployment. Context detection uses the full ancestor-origin chain
+because Google currently adds two wrapper frames.

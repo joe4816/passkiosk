@@ -1,13 +1,17 @@
-const PK_BUILD='0.3.18-visible-signin';
-let staffSignInUrl='', staffSignInPending=false, staffSignInBusy=false;
+const PK_BUILD='0.3.19-native-signin';
+let staffSignInUrl='', staffSignInBusy=false;
 const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,outputMode:'PRINT',pdfEmail:null,bulk:false,student:null,studentDetails:null,studentEpoch:0,studentLoading:false,studentLookupError:'',detentionEpoch:0,detentionLoading:false,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',submitting:false,busInfo:null,busOverride:null,busResetTimer:null,busCountdownTimer:null,busBusy:false,busEpoch:0,busWritePending:false,camera:{devices:[],selectedDeviceId:'',opening:false,requestId:0,stream:null,raf:null,lastCode:'',lastAt:0,lastSeenAt:0}};
+const appStorage={memory:new Map(),getItem(key){try{return localStorage.getItem(key)||this.memory.get(key)||null}catch(_){return this.memory.get(key)||null}},setItem(key,value){this.memory.set(key,String(value));try{localStorage.setItem(key,value)}catch(_){}}};
 document.addEventListener('DOMContentLoaded',init);
 
 async function init(){
+  if(window.PASSKIOSK_EMBEDDED_BRIDGE)return;
   state.deviceId=getDeviceId();
   try{
     state.authMode=await PassKioskBridge.mode();
-    if(state.authMode==='staff'){
+    if(window.PASSKIOSK_NATIVE_STAFF){
+      await completeStaffSignIn();
+    }else if(state.authMode==='staff'){
       staffSignInUrl=await PassKioskBridge.signInUrl();
       showStaffSignIn();
     }else{
@@ -26,16 +30,10 @@ function showStaffSignIn(message=''){
   document.getElementById('identifyPane').classList.add('hidden');
   document.getElementById('printerPane').classList.add('hidden');
   pane.innerHTML='<div class="front-title">Sign in with your CCSD Google account</div>'+
-    '<div class="muted">Google opens in a separate tab. When you return, we’ll check your access automatically.</div>'+
+    '<div class="muted">Continue with Google in this tab. Once signed in, your staff access is checked automatically.</div>'+
     (message?'<div class="lookup-error" role="alert">'+esc(message)+'</div>':'')+
-    '<div class="submit-row"><a class="primary google-signin" href="'+attr(staffSignInUrl)+'" target="_blank" rel="noopener" onclick="beginStaffSignIn()">'+(staffSignInPending?'Open Google sign-in again':'Continue with Google')+'</a></div>'+
-    (staffSignInPending?'<div class="submit-row"><button class="secondary" onclick="completeStaffSignIn()">I’m signed in — continue</button></div>':'')+
+    '<div class="submit-row"><a class="primary google-signin" href="'+attr(staffSignInUrl)+'" target="_top">Continue with Google</a></div>'+
     '<div class="small muted app-build">App '+PK_BUILD+'</div>';
-}
-function beginStaffSignIn(){
-  staffSignInPending=true;
-  // Let the link's native click open Google before repainting its parent.
-  setTimeout(()=>showStaffSignIn(),0);
 }
 async function completeStaffSignIn(){
   if(state.authMode!=='staff'||staffSignInBusy)return;
@@ -48,17 +46,17 @@ async function completeStaffSignIn(){
     if(!profile||!profile.ok)throw new Error('Your signed-in CCSD account is not allowed to use PassKiosk.');
     state.front=await server('getFrontDoorConfig');
     state.identified=profile;
-    staffSignInPending=false;
     showPrinterSelection(false);
   }catch(err){
     const raw=err.message||'Unable to check your access.';
     const message=/backend did not respond|bridge could not load/i.test(raw)
       ? 'Google sign-in has not connected to PassKiosk. Finish signing in in the Google tab, then continue here. If you already did, browser privacy settings or the school network may be blocking the connection.' : raw;
-    showStaffSignIn(message);
+    if(window.PASSKIOSK_NATIVE_STAFF){
+      pane.innerHTML='<div class="front-title">PassKiosk could not check your access.</div><div class="lookup-error" role="alert">'+esc(raw)+'</div><button class="secondary" onclick="completeStaffSignIn()">Retry access check</button><div class="small muted app-build">App '+PK_BUILD+'</div>';
+    }else showStaffSignIn(message);
   }finally{staffSignInBusy=false}
 }
-window.addEventListener?.('focus',()=>{if(staffSignInPending&&!staffSignInBusy)completeStaffSignIn()});
-function getDeviceId(){const k='PassKioskDeviceId';let id=localStorage.getItem(k);if(!id){id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'PKD-'+Date.now()+'-'+Math.random().toString(36).slice(2);localStorage.setItem(k,id)}return id}
+function getDeviceId(){const k='PassKioskDeviceId';let id=appStorage.getItem(k);if(!id){id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'PKD-'+Date.now()+'-'+Math.random().toString(36).slice(2);appStorage.setItem(k,id)}return id}
 function server(fn,...args){return PassKioskBridge.call(fn,...args)}
 
 function showKioskIdentityPrompt(){
@@ -100,8 +98,8 @@ async function identifyUser(){
     toast(err.message,true);
   }
 }
-function renderFrontPrinters(){const box=document.getElementById('frontPrinters'),remembered=localStorage.getItem('PassKioskLastPrinter:'+state.identified.username)||'';box.innerHTML='';if(state.front.pdfEmail?.enabled){document.getElementById('outputPrompt').textContent='How do you want your documents?';const emailButton=document.createElement('button');emailButton.className='printer-btn remembered';emailButton.textContent='Email PDFs to my CCSD email';emailButton.onclick=()=>enterEmailPassKiosk();box.appendChild(emailButton)}(state.front.printers||[]).forEach(p=>{const b=document.createElement('button');b.className='printer-btn'+(p.key===remembered?' remembered':'');b.textContent=p.friendlyName;b.onclick=()=>enterPassKiosk(p.key);box.appendChild(b)})}
-async function enterPassKiosk(printerKey){try{const res=await server('startSession',state.identified.username,printerKey,state.deviceId);state.token=res.token;state.currentPrinter=res.printer;localStorage.setItem('PassKioskLastPrinter:'+state.identified.username,printerKey);state.bootstrap=await server('getBootstrapData',state.token);state.session=state.bootstrap.session;state.outputMode='PRINT';state.pdfEmail=state.bootstrap.pdfEmail||null;initializeLaneValues();document.getElementById('front').classList.add('hidden');document.getElementById('app').classList.remove('hidden');updateContext();selectLane(null)}catch(err){toast(err.message,true)}}
+function renderFrontPrinters(){const box=document.getElementById('frontPrinters'),remembered=appStorage.getItem('PassKioskLastPrinter:'+state.identified.username)||'';box.innerHTML='';if(state.front.pdfEmail?.enabled){document.getElementById('outputPrompt').textContent='How do you want your documents?';const emailButton=document.createElement('button');emailButton.className='printer-btn remembered';emailButton.textContent='Email PDFs to my CCSD email';emailButton.onclick=()=>enterEmailPassKiosk();box.appendChild(emailButton)}(state.front.printers||[]).forEach(p=>{const b=document.createElement('button');b.className='printer-btn'+(p.key===remembered?' remembered':'');b.textContent=p.friendlyName;b.onclick=()=>enterPassKiosk(p.key);box.appendChild(b)})}
+async function enterPassKiosk(printerKey){try{const res=await server('startSession',state.identified.username,printerKey,state.deviceId);state.token=res.token;state.currentPrinter=res.printer;appStorage.setItem('PassKioskLastPrinter:'+state.identified.username,printerKey);state.bootstrap=await server('getBootstrapData',state.token);state.session=state.bootstrap.session;state.outputMode='PRINT';state.pdfEmail=state.bootstrap.pdfEmail||null;initializeLaneValues();document.getElementById('front').classList.add('hidden');document.getElementById('app').classList.remove('hidden');updateContext();selectLane(null)}catch(err){toast(err.message,true)}}
 function resetFrontDoor(){
   if(state.authMode!=='kiosk')return;
   state.identified=null;

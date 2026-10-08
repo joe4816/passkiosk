@@ -217,8 +217,8 @@ function generateKioskBridgeKey_() {
  * Used by Code.gs doGet(e) when ?bridge=1 is requested.
  */
 function servePassKioskBridge_() {
-  return HtmlService.createHtmlOutputFromFile('Bridge')
-    .setTitle('PassKiosk Bridge')
+  return HtmlService.createHtmlOutputFromFile('StaffBridge')
+    .setTitle('PassKiosk')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -229,3 +229,4 @@ function getPdfEmailConfig(token) { return staffRpc('getPdfEmailConfig', [token]
 function submitEmailWorkflow(token, request) { return staffRpc('submitEmailWorkflow', [token, request]); }
 function getRecentPdfEmails(token, deviceId) { return staffRpc('getRecentPdfEmails', [token, deviceId]); }
 function retryPdfEmail(token, deviceId, id) { return staffRpc('retryPdfEmail', [token, deviceId, id]); }
+

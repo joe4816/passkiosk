@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head><base target="_top"><script>
-window.PASSKIOSK_NATIVE_STAFF=(window.parent===window.top);window.PASSKIOSK_EMBEDDED_BRIDGE=!window.PASSKIOSK_NATIVE_STAFF;if(window.PASSKIOSK_EMBEDDED_BRIDGE)document.documentElement.setAttribute('data-embedded','');
+window.PASSKIOSK_EMBEDDED_BRIDGE=Array.from(window.location.ancestorOrigins||[]).includes('https://joe4816.github.io');window.PASSKIOSK_NATIVE_STAFF=!window.PASSKIOSK_EMBEDDED_BRIDGE;if(window.PASSKIOSK_EMBEDDED_BRIDGE)document.documentElement.setAttribute('data-embedded','');
 </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

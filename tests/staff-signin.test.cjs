@@ -82,7 +82,23 @@ test('generated Apps Script app contains valid scripts and preserves embedded RP
  const html=fs.readFileSync(__dirname+'/../apps-script/StaffBridge.html','utf8');
  const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
  assert.ok(scripts.length>8);for(const match of scripts)new vm.Script(match[1]);
- assert.match(html,/window.parent===window.top/);
+ assert.match(html,/window.location.ancestorOrigins/);
  assert.match(html,/runner.kioskRpc/);assert.match(html,/staffRpc\(fn, args\)/);
  assert.doesNotMatch(html,/<script defer src=/);
+});
+
+
+test('Google wrapper depth does not confuse staff and kiosk contexts',()=>{
+ const html=fs.readFileSync(__dirname+'/../apps-script/StaffBridge.html','utf8');
+ const flags=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+ for(const [origins,embedded] of [
+   [['https://script.google.com'],false],
+   [['https://x.googleusercontent.com','https://script.google.com'],false],
+   [['https://x.googleusercontent.com','https://script.google.com','https://joe4816.github.io'],true]
+ ]){
+   const c={window:{location:{ancestorOrigins:origins}},document:{documentElement:{setAttribute(){}}}};
+   vm.createContext(c);vm.runInContext(flags,c);
+   assert.equal(c.window.PASSKIOSK_EMBEDDED_BRIDGE,embedded);
+   assert.equal(c.window.PASSKIOSK_NATIVE_STAFF,!embedded);
+ }
 });

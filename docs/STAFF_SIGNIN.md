@@ -1,4 +1,4 @@
-# Staff sign-in 0.3.19 — prepared, not deployed
+# Staff sign-in 0.3.19 — backend deployed, front door verification pending
 
 The 0.3.18 separate-tab flow is defective in real use. The top-level Bridge page
 is intentionally blank and has no completion callback. Returning to GitHub
@@ -36,6 +36,7 @@ Automated tests cover both startup contexts, the same-tab link, direct staffRpc
 success/error propagation, access denial, no identity fallback, and generated
 script syntax. Physical printing is not part of the auth test.
 
-Deployment blocked on 2026-10-08: the editor redirected to Google's public Apps
-Script information page. Its sign-in link returned 502 connection refused.
-No live Apps Script changes were made. Do not claim real-world sign-in success.
+Backend deployment restored on 2026-10-08. StaffBridge and the page factory
+were deployed as app backend version 20; the unattended worker remains on its
+existing deployment. Context detection uses the full ancestor-origin chain
+because Google currently adds two wrapper frames.

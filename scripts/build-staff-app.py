@@ -10,9 +10,9 @@ def script(source):
 
 def build():
     html = (ROOT / 'index.html').read_text()
-    # The inner HtmlService frame has the Google wrapper as parent. When that
-    # wrapper is embedded in the managed kiosk, it is not the top-level window.
-    flags = "window.PASSKIOSK_NATIVE_STAFF=(window.parent===window.top);window.PASSKIOSK_EMBEDDED_BRIDGE=!window.PASSKIOSK_NATIVE_STAFF;if(window.PASSKIOSK_EMBEDDED_BRIDGE)document.documentElement.setAttribute('data-embedded','');"
+    # Google may use multiple wrapper frames. Detect the GitHub embedding
+    # origin across the full ancestor chain rather than counting wrappers.
+    flags = "window.PASSKIOSK_EMBEDDED_BRIDGE=Array.from(window.location.ancestorOrigins||[]).includes('https://joe4816.github.io');window.PASSKIOSK_NATIVE_STAFF=!window.PASSKIOSK_EMBEDDED_BRIDGE;if(window.PASSKIOSK_EMBEDDED_BRIDGE)document.documentElement.setAttribute('data-embedded','');"
     html = html.replace('<head>', '<head><base target="_top">'+script(flags))
     html = re.sub(r'<link rel="(?:manifest|icon)"[^>]+>', '', html)
     html = re.sub(r'<link rel="stylesheet"[^>]+>', '<style>html[data-embedded] body{display:none}\n'+(ROOT/'styles.css').read_text()+'</style>', html)

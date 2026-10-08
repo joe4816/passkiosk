@@ -206,21 +206,23 @@ function recordEmailWorkflow_(session, request) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    const now = new Date(), txs = [], errorRows = [], created = [], errors = [];
+    const now = new Date(), txs = [], errorRows = [], created = [], errors = [], printRows = [];
     const detentionState = ['DET', 'LUNCH_DET'].includes(workflow) ? getDetentionState_(workflow) : null;
     ids.forEach(function(id, index) {
       const tid = bulk ? root + '-' + String(index + 1).padStart(2, '0') : root;
       const student = students[id];
       try {
         if (!student) throw processingError_('STUDENT_NOT_FOUND', 'Student could not be found.', 'STUDENT_LOOKUP');
-        const tx = buildTransaction_(tid, now, session, workflow, student, request.data || {}, cfg, detentionState, bulk);
-        txs.push(tx);
+        const bundle = prepareWorkflowBundle_(tid, now, session, workflow, student, request.data || {}, cfg, detentionState, bulk, true);
+        const tx = bundle.transaction;
+        txs.push(...bundle.transactions);
+        printRows.push(...bundle.jobs);
         if (detentionState && tx['Detention Date']) {
           const key = valueToDateKey_(tx['Detention Date']);
           detentionState.counts[key] = Number(detentionState.counts[key] || 0) + 1;
           detentionState.studentDates[id + '|' + key] = true;
         }
-        created.push({transactionId: tid, studentId: id, studentName: [student.firstName, student.lastName].join(' ')});
+        created.push({transactionId: tid, pickupTransactionId: bundle.pickupTransactionId, studentId: id, studentName: [student.firstName, student.lastName].join(' ')});
       } catch (err) {
         const p = err && err.pkProcessing ? err : processingError_('PROCESSING_FAILED', String(err.message || err));
         const row = makeProcessingErrorRow_(tid + '-ERR', now, session, workflow, student || {studentId: id},
@@ -230,9 +232,10 @@ function recordEmailWorkflow_(session, request) {
       }
     });
     if (txs.length) appendMappedRows_(PK.TRANSACTIONS_SHEET, txs);
+    if (printRows.length) appendMappedRows_(PK.PRINT_JOBS_SHEET, printRows);
     if (errorRows.length) appendMappedRows_(PK.ERRORS_SHEET, errorRows);
     return {ok: true, bulk: bulk, batchRoot: bulk ? root : '', createdCount: created.length,
-      errorCount: errors.length, created: created, errors: errors, printingQueued: false};
+      errorCount: errors.length, created: created, errors: errors, printingQueued: printRows.length > 0};
   } finally { lock.releaseLock(); }
 }
 
@@ -251,7 +254,7 @@ function deliverRecordedPdf_(token, id, retry) {
   let mailInvoked = false;
   try {
     const result = JSON.parse(entry.record['Result JSON']);
-    const ids = result.transactionId ? [result.transactionId] : (result.created || []).map(function(r) { return r.transactionId; });
+    const ids = result.transactionId ? [result.transactionId] : (result.created || []).flatMap(function(r) { return [r.transactionId, r.pickupTransactionId].filter(Boolean); });
     const byId = {};
     readSheetRecords_(PK.TRANSACTIONS_SHEET).forEach(function(tx) { byId[String(tx['Transaction ID'])] = tx; });
     const txs = ids.map(function(tid) {
@@ -431,3 +434,4 @@ function enablePdfEmail_() {
   PropertiesService.getScriptProperties().setProperty('PASSKIOSK_PDF_EMAIL_ENABLED', 'true');
   Logger.log('PDF email is enabled. Update the secure deployment to expose it.');
 }
+

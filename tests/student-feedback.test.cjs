@@ -4,12 +4,13 @@ function fixture(lane='PASS'){
  const elements={};let focused='';
  for(const id of ['app','workspace','studentSearch','studentSuggestions','selectedStudentArea','passToArea','requestRouting','detDateArea'])elements[id]={value:'Ada',innerHTML:'',dataset:{},attributes:{},classList:{add(x){this[x]=true},remove(x){delete this[x]},toggle(){}},setAttribute(k,v){this.attributes[k]=v},focus(){focused=id},scrollIntoView(){}};
  const c={console,navigator:{},window:{},document:{addEventListener(){},getElementById:id=>elements[id]||null,querySelectorAll:()=>[]},setTimeout,clearTimeout,setInterval,clearInterval};vm.createContext(c);
- for(const f of ['app-core','app-pass-request','app-detention-settings','app-camera-utils'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/'+f+'.js'),'utf8'),c);
+ c.setInterval=()=>0;
+ for(const f of ['app-core','app-pass-request','app-class-routing','app-detention-settings','app-camera-utils'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/'+f+'.js'),'utf8'),c);
  const run=s=>vm.runInContext(s,c);run(`state.lane='${lane}';state.token='T';state.bootstrap={studentIndex:[{studentId:'1',firstName:'Ada',lastName:'Test',grade:'8'},{studentId:'2',firstName:'Ben',lastName:'Test',grade:'7'}]};`);
  c.toast=()=>{};c.closeCamera=()=>{};c.renderRequest=()=>{};c.renderPass=()=>{};
  return {c,run,e:elements,focus:()=>focused};
 }
-const details=name=>({ok:true,routing:{currentClass:{display:name},defaultClass:{display:name,period:'P1'},periods:[]}});
+const details=name=>({ok:true,routing:{currentClass:{display:name},defaultClass:{display:name,period:'P1'},periods:[{display:name,period:'P1'}]}});
 (async()=>{
  for(const lane of ['PASS','RQST']){
   const {c,run,e,focus}=fixture(lane),reply=deferred();c.server=()=>reply.promise;

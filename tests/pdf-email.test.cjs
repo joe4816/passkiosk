@@ -27,7 +27,7 @@ function harness(){
   getDetentionState_:()=>({counts:{},studentDates:{}}),valueToDateKey_:()=> '2026-10-06',
   submitBusWorkflow_:(t,r)=>{const tx={'Transaction ID':'BUS-'+ ++uuid,'Created At':new Date(),Status:'CREATED',Workflow:'BUS','Device ID':session.deviceId,'Session Username':session.username,'Session User':session.displayName,'Student ID':r.studentId,'Student Name':'Bus Student','Approved By':'Different Approver','Bus Assignment Count':2,'Bus Route(s)':'Route A\nRoute B','Bus Drop-off(s)':'Stop A\nStop B','Bus Snapshot':'#1 school time A\n#2 school time B','Bus Scan Type':r.allowDuplicate?'DUPLICATE':'NORMAL','Duplicate Of Transaction ID':r.allowDuplicate?'ORIGINAL':''};transactions.push(tx);return {ok:true,transactionId:tx['Transaction ID'],studentId:r.studentId,assignments:[{route:'A'},{route:'B'}],printingQueued:false};}
  });
- vm.runInContext(source,c);vm.runInContext(rpc,c);
+ vm.runInContext(read('apps-script/WorkflowOptions.gs'),c);vm.runInContext(source,c);vm.runInContext(rpc,c);
  const realRenderer=c.buildPdfEmailAttachment_;
  c.emailSheet_=()=>({});c.findEmailDelivery_=id=>deliveries.get(id)||null;
  c.updateEmailDelivery_=(e,v)=>Object.assign(e.record,v,{'Updated At':new Date()});
@@ -51,6 +51,15 @@ for(const workflow of ['PASS','RQST','DET','LUNCH_DET']){
  const h=harness();h.c.submitEmailWorkflow_('t',req('BUS',{studentIds:undefined,studentId:'1',approvedByUsername:'APPROVER',allowDuplicate:true}));
  assert.equal(h.mail[0].to,'operator@nv.ccsd.net');const f=h.c.pdfEmailFields_(h.transactions[0],{sources:{}});
  assert.equal(f.find(x=>x[0]==='Transportation snapshot')[1],'#1 school time A\n#2 school time B');assert.equal(f.find(x=>x[0]==='Duplicate of')[1],'ORIGINAL');
+}
+// Linked requests are included once in the same email, without default physical jobs.
+{
+ const h=harness();h.c.detentionPickupData_=()=>({destination:'Office',when:'At:',atTime:'13:31',deliveryMode:'PERIOD',deliveryPeriod:'P6'});
+ const r=req('DET');r.data.createPickupRequest=true;
+ const res=h.c.submitEmailWorkflow_('t',r);
+ assert.equal(res.createdCount,1);assert.equal(h.transactions.length,2);assert.equal(h.rendered[0].txs.length,2);
+ assert.equal(h.rendered[0].txs[1].Workflow,'RQST');assert.equal(h.mail.length,1);
+ h.c.submitEmailWorkflow_('t',r);assert.equal(h.transactions.length,2);assert.equal(h.mail.length,1);
 }
 // Recoverable failures retry only saved documents, not student transactions.
 for(const reason of ['quota','render']){
@@ -122,3 +131,4 @@ async function clientChecks(){
  console.log('PDF email client: alternate RPC, recorded-versus-delivery feedback, uncertain response recovery, preflight limit and cached script passed.');
 }
 clientChecks().catch(e=>{console.error(e);process.exitCode=1});
+

@@ -121,3 +121,14 @@ function prepareWorkflowBundle_(tid, now, session, workflow, student, data, cfg,
   }
   return {transaction:tx, transactions, jobs, pickupTransactionId:pickup ? pickup['Transaction ID'] : ''};
 }
+/** Read-only deployment check: does not create transactions, jobs or messages. */
+function testWorkflowOptions() {
+  const cfg = readHelperConfig_();
+  const sample = {lunch:'A',schedule:{P1:{room:'101',teacher:'Test'},P6:{room:'106',teacher:'Test'}}};
+  const bell = bellForStudentPeriod_('P6',sample,cfg.bells);
+  if (!bell) throw new Error('P6 bell is missing.');
+  ['AP','BACK'].forEach(office => detentionOfficePair_({detentionOffice:office},cfg));
+  const routing = resolveRouting_(sample,cfg);
+  if (!routing.timing || !routing.timing.windows.length) throw new Error('Shared timing is missing.');
+  Logger.log(JSON.stringify({ok:true,readOnly:true,officePairs:2,finalBellMinutes:bell.endMin,pickupMinutes:bell.endMin-10,defaultPeriod:routing.defaultPeriod,transactionsCreated:0,printJobsCreated:0}));
+}

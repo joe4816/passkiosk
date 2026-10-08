@@ -1,6 +1,6 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.16-lunch-art',
+  version: '0.3.17-period-detentions',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: true,

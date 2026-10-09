@@ -1,4 +1,5 @@
-const PK_BUILD='0.3.19-native-signin';
+const PK_BUILD='0.3.20-output-selection';
+const outputSelection={printerKey:'',email:false,busy:false};
 let staffSignInUrl='', staffSignInBusy=false;
 const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,outputMode:'PRINT',pdfEmail:null,bulk:false,student:null,studentDetails:null,studentEpoch:0,studentLoading:false,studentLookupError:'',detentionEpoch:0,detentionLoading:false,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',submitting:false,busInfo:null,busOverride:null,busResetTimer:null,busCountdownTimer:null,busBusy:false,busEpoch:0,busWritePending:false,camera:{devices:[],selectedDeviceId:'',opening:false,requestId:0,stream:null,raf:null,lastCode:'',lastAt:0,lastSeenAt:0}};
 const appStorage={memory:new Map(),getItem(key){try{return localStorage.getItem(key)||this.memory.get(key)||null}catch(_){return this.memory.get(key)||null}},setItem(key,value){this.memory.set(key,String(value));try{localStorage.setItem(key,value)}catch(_){}}};
@@ -98,15 +99,56 @@ async function identifyUser(){
     toast(err.message,true);
   }
 }
-function renderFrontPrinters(){const box=document.getElementById('frontPrinters'),remembered=appStorage.getItem('PassKioskLastPrinter:'+state.identified.username)||'';box.innerHTML='';if(state.front.pdfEmail?.enabled){document.getElementById('outputPrompt').textContent='How do you want your documents?';const emailButton=document.createElement('button');emailButton.className='printer-btn remembered';emailButton.textContent='Email PDFs to my CCSD email';emailButton.onclick=()=>enterEmailPassKiosk();box.appendChild(emailButton)}(state.front.printers||[]).forEach(p=>{const b=document.createElement('button');b.className='printer-btn'+(p.key===remembered?' remembered':'');b.textContent=p.friendlyName;b.onclick=()=>enterPassKiosk(p.key);box.appendChild(b)})}
-async function enterPassKiosk(printerKey){try{const res=await server('startSession',state.identified.username,printerKey,state.deviceId);state.token=res.token;state.currentPrinter=res.printer;appStorage.setItem('PassKioskLastPrinter:'+state.identified.username,printerKey);state.bootstrap=await server('getBootstrapData',state.token);state.session=state.bootstrap.session;state.outputMode='PRINT';state.pdfEmail=state.bootstrap.pdfEmail||null;initializeLaneValues();document.getElementById('front').classList.add('hidden');document.getElementById('app').classList.remove('hidden');updateContext();selectLane(null)}catch(err){toast(err.message,true)}}
+function isReceiptPrinter(printer){
+  return ['RECEIPT1','RECEIPT2','CAFE_TARDY','AP_TARDY'].includes(printer.key)||/rcpt|receipt|80.?mm/i.test([printer.type,printer.outputFormat,printer.mediaProfileId].join(' '));
+}
+function renderFrontPrinters(){
+  const box=document.getElementById('frontPrinters');
+  document.getElementById('outputPrompt').textContent='Choose your output';
+  const printers=state.front.printers||[];
+  const column=(receipt)=>printers.filter(p=>isReceiptPrinter(p)===receipt).map(p=>`<button type="button" class="printer-choice ${outputSelection.printerKey===p.key?'selected':''}" role="checkbox" aria-checked="${outputSelection.printerKey===p.key}" data-printer-key="${attr(p.key)}" onclick="toggleOutputPrinter(this.dataset.printerKey)" ${outputSelection.busy?'disabled':''}><span class="choice-box" aria-hidden="true">${outputSelection.printerKey===p.key?'✓':''}</span><span>${esc(p.friendlyName)}</span></button>`).join('');
+  box.innerHTML=`<div class="small muted">Choose up to one printer. PDF email can be used on its own or with a printer.</div><div class="output-columns"><section aria-labelledby="copierHeading"><h3 id="copierHeading">Copiers</h3>${column(false)}</section><section aria-labelledby="receiptHeading"><h3 id="receiptHeading">Receipt printers</h3>${column(true)}</section></div>${state.front.pdfEmail?.enabled?`<div class="output-email"><button type="button" class="printer-choice ${outputSelection.email?'selected':''}" role="checkbox" aria-checked="${outputSelection.email}" onclick="toggleOutputEmail()" ${outputSelection.busy?'disabled':''}><span class="choice-box" aria-hidden="true">${outputSelection.email?'✓':''}</span><span>Send PDF to my email</span></button></div>`:''}<div id="outputValidation" class="lookup-error hidden" role="alert"></div><div class="output-continue"><button type="button" class="primary" onclick="continueOutputSelection()" ${outputSelection.busy?'disabled':''}>${outputSelection.busy?'Connecting…':'Continue'}</button></div>`;
+}
+function toggleOutputPrinter(key){
+  if(outputSelection.busy)return;
+  if(!(state.front.printers||[]).some(p=>p.key===key))return;
+  outputSelection.printerKey=outputSelection.printerKey===key?'':key;
+  renderFrontPrinters();
+}
+function toggleOutputEmail(){
+  if(outputSelection.busy||!state.front.pdfEmail?.enabled)return;
+  outputSelection.email=!outputSelection.email;renderFrontPrinters();
+}
+async function continueOutputSelection(){
+  if(outputSelection.busy)return;
+  if(!outputSelection.printerKey&&!outputSelection.email){
+    const message=document.getElementById('outputValidation');message.textContent='Choose a printer or turn on PDF email to continue.';message.classList.remove('hidden');return;
+  }
+  outputSelection.busy=true;renderFrontPrinters();
+  try{
+    if(outputSelection.printerKey)await enterPassKiosk(outputSelection.printerKey,outputSelection.email);
+    else await enterEmailPassKiosk();
+  }finally{outputSelection.busy=false;if(!document.getElementById('front').classList.contains('hidden'))renderFrontPrinters()}
+}
+async function enterPassKiosk(printerKey,email=false){
+  try{
+    const res=await server('startSession',state.identified.username,printerKey,state.deviceId);
+    const bootstrap=await server('getBootstrapData',res.token);
+    if(email&&(!bootstrap.pdfEmail?.enabled||!bootstrap.pdfEmail.recipient))throw new Error('PDF email could not be verified. Choose another output or try again.');
+    state.token=res.token;state.currentPrinter=res.printer;state.bootstrap=bootstrap;state.session=bootstrap.session;
+    state.outputMode=email?'BOTH':'PRINT';state.pdfEmail=bootstrap.pdfEmail||null;
+    initializeLaneValues();document.getElementById('front').classList.add('hidden');document.getElementById('app').classList.remove('hidden');updateContext();selectLane(null);
+  }catch(err){toast(err.message,true)}
+}
 function resetFrontDoor(){
   if(state.authMode!=='kiosk')return;
   state.identified=null;
+  outputSelection.printerKey='';outputSelection.email=false;
   showKioskIdentityPrompt();
 }
 function initializeLaneValues(){const me=state.session.username,loc=state.session.defaultLocation||'';state.laneValues={PASS:{from:loc},RQST:{destination:loc,requestedByUsername:me},DET:{issuedByUsername:me,reportTo:state.bootstrap.detention.afterSchool.defaultLocation||''},LUNCH_DET:{issuedByUsername:me,reportTo:state.bootstrap.detention.lunch.defaultLocation||''},BUS:{approvedByUsername:me}}}
-function updateContext(){const a=state.bootstrap.adults.find(x=>x.username===state.session.username);document.getElementById('contextUser').textContent=a?a.displayName:state.session.displayName;document.getElementById('contextPrinter').textContent=state.outputMode==='EMAIL'?'PDF → '+(state.pdfEmail?.recipient||'my email'):(state.currentPrinter?state.currentPrinter.friendlyName:'')}
+function updateContext(){const a=state.bootstrap.adults.find(x=>x.username===state.session.username);document.getElementById('contextUser').textContent=a?a.displayName:state.session.displayName;const email='PDF → '+(state.pdfEmail?.recipient||'my email');document.getElementById('contextPrinter').textContent=state.outputMode==='EMAIL'?email:(state.currentPrinter?.friendlyName||'')+(state.outputMode==='BOTH'?' + '+email:'')}
+
 
 function selectLane(lane){invalidateStudentLookup();state.detentionEpoch++;state.detentionLoading=false;const app=document.getElementById('app');if(app?.dataset)app.dataset.lane=lane||'';state.busEpoch++;closeCamera();if(state.busResetTimer){clearTimeout(state.busResetTimer);state.busResetTimer=null}if(state.busCountdownTimer){clearInterval(state.busCountdownTimer);state.busCountdownTimer=null}state.busInfo=null;state.busOverride=null;state.busBusy=false;state.lane=lane;state.classChoices={};state.bulk=false;state.student=null;state.studentDetails=null;state.basket=[];state.detentionAvailability=null;state.requestDeliveryMode='AUTO';state.requestDeliveryPeriod='';state.requestWhen='';state.detentionDate='';document.querySelectorAll('.nav button').forEach(b=>{b.classList.toggle('active',b.dataset.lane===lane);b.setAttribute('aria-pressed',String(b.dataset.lane===lane))});const w=document.getElementById('workspace');if(!lane){w.className='pick-lane';w.innerHTML='↑ Pick a lane';return}w.className='';if(lane==='PASS')renderPass();if(lane==='RQST')renderRequest();if(lane==='DET')renderDetention(false);if(lane==='LUNCH_DET')renderDetention(true);if(lane==='BUS')renderBus();if(lane==='SETTINGS')renderSettings()}
 function refreshCurrentLane(){const keep=state.lane;if(keep==='PASS')renderPass();if(keep==='RQST')renderRequest();if(keep==='DET')renderDetention(false);if(keep==='LUNCH_DET')renderDetention(true);if(keep==='BUS')renderBus()}

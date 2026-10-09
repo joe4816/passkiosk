@@ -1,5 +1,5 @@
 /**
- * Temporary, authenticated PDF email output. No Print_Jobs are created.
+ * Authenticated PDF delivery, optionally combined with one physical printer.
  * Install with current SecureRpc.gs. Enable only after testPdfEmailRendering_().
  * The durable ledger reserves each client request before recording; retries
  * reuse the original result and never submit a transaction a second time.
@@ -90,6 +90,8 @@ function assertPdfEmailReady_(session, request) {
   if (request.workflow === 'BUS' && typeof submitBusWorkflow_ !== 'function') {
     throw new Error('Install and verify Activity Bus before emailing bus passes.');
   }
+  if(request.includePhysicalPrint!==undefined&&typeof request.includePhysicalPrint!=='boolean')throw new Error('Invalid physical output selection.');
+  if(request.includePhysicalPrint===true)getPrinterForSession_(session,readHelperConfig_());
   return pdfEmailRecipient_(session);
 }
 
@@ -174,7 +176,7 @@ function submitEmailWorkflow_(token, request) {
   if (existing) return emailResult_(existing);
   let result;
   try {
-    result = request.workflow === 'BUS' ? submitBusWorkflow_(token, request) : recordEmailWorkflow_(session, request);
+    result = request.workflow === 'BUS' ? submitBusWorkflow_(token, request) : recordEmailWorkflow_(session, request, request.includePhysicalPrint===true);
     const json = JSON.stringify(result);
     if (json.length > 45000) throw new Error('Submission result exceeds the delivery ledger limit.');
     const entry = findEmailDelivery_(deliveryId);
@@ -194,8 +196,8 @@ function submitEmailWorkflow_(token, request) {
   return emailResult_(findEmailDelivery_(deliveryId));
 }
 
-/** Same production builders and detention state; deliberately no print queue. */
-function recordEmailWorkflow_(session, request) {
+/** Build the saved documents once for email and any selected print destinations. */
+function recordEmailWorkflow_(session, request, includePhysicalPrint) {
   const cfg = readHelperConfig_();
   const ids = Array.from(new Set((request.studentIds || []).map(normalizeStudentId_).filter(Boolean)));
   if (!ids.length) throw new Error('Choose at least one student.');
@@ -213,7 +215,7 @@ function recordEmailWorkflow_(session, request) {
       const student = students[id];
       try {
         if (!student) throw processingError_('STUDENT_NOT_FOUND', 'Student could not be found.', 'STUDENT_LOOKUP');
-        const bundle = prepareWorkflowBundle_(tid, now, session, workflow, student, request.data || {}, cfg, detentionState, bulk, true);
+        const bundle = prepareWorkflowBundle_(tid, now, session, workflow, student, request.data || {}, cfg, detentionState, bulk, includePhysicalPrint !== true);
         const tx = bundle.transaction;
         txs.push(...bundle.transactions);
         printRows.push(...bundle.jobs);
@@ -275,7 +277,7 @@ function deliverRecordedPdf_(token, id, retry) {
       subject: 'PassKiosk PDF — ' + (txs.length === 1 ? pdfWorkflowTitle_(txs[0].Workflow) : txs.length + ' documents') + ' — ' + id,
       body: 'Your PassKiosk PDF is attached.\n\nRecorded documents: ' + txs.length +
         '\nItems requiring attention: ' + (result.errors || []).length +
-        '\nDelivery ID: ' + id + '\n\nProcessing errors are listed in the PDF. Email output does not queue a physical print job.',
+        '\nDelivery ID: ' + id + '\n\nProcessing errors are listed in the PDF. Physical printing follows your selected printer and any detention office override.',
       attachments: [pdf]});
     updateEmailDelivery_(entry, {'Status': 'SENT', 'Message': 'Submitted to Google Mail for delivery. Check your inbox.'});
   } catch (err) {

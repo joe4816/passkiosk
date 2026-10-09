@@ -132,3 +132,34 @@ async function clientChecks(){
 }
 clientChecks().catch(e=>{console.error(e);process.exitCode=1});
 
+
+// Combined output records each document once and queues from that same transaction.
+for(const workflow of ['PASS','RQST','DET','LUNCH_DET']){
+ const h=harness(),jobs=[];
+ h.c.PK.PRINT_JOBS_SHEET='Print_Jobs';
+ h.c.getPrinterForSession_=()=>({key:'AP_COPIER'});
+ h.c.makePrintJobRow_=(tid,now,session)=>({'Transaction ID':tid,'Printer Key':session.printerKey});
+ const append=h.c.appendMappedRows_;
+ h.c.appendMappedRows_=(name,rows)=>name==='Print_Jobs'?jobs.push(...rows):append(name,rows);
+ const r=req(workflow,{includePhysicalPrint:true});
+ const result=h.c.submitEmailWorkflow_('t',r);
+ assert.equal(result.printingQueued,true);assert.equal(h.transactions.length,1);assert.equal(jobs.length,1);assert.equal(h.mail.length,1);
+ assert.equal(jobs[0]['Transaction ID'],h.transactions[0]['Transaction ID']);
+ h.c.submitEmailWorkflow_('t',r);assert.equal(jobs.length,1);assert.equal(h.mail.length,1);
+ h.c.retryPdfEmail_('t','DEVICE',result.emailDelivery.deliveryId);assert.equal(jobs.length,1);
+ assert.throws(()=>h.c.submitEmailWorkflow_('t',req(workflow,{includePhysicalPrint:'true'})),/Invalid physical/);
+}
+{
+ const h=harness(),jobs=[];
+ h.c.PK.PRINT_JOBS_SHEET='Print_Jobs';
+ h.c.getPrinterForSession_=()=>({key:'MAIN_COPIER'});
+ h.c.readHelperConfig_=()=>({sources:{},printers:[{key:'AP_COPIER'},{key:'AP_TARDY'}]});
+ h.c.makePrintJobRow_=(tid,now,session)=>({'Transaction ID':tid,'Printer Key':session.printerKey});
+ h.c.detentionPickupData_=()=>({destination:'Office'});
+ const append=h.c.appendMappedRows_;h.c.appendMappedRows_=(name,rows)=>name==='Print_Jobs'?jobs.push(...rows):append(name,rows);
+ const r=req('DET',{includePhysicalPrint:true});r.data.detentionOffice='AP';r.data.createPickupRequest=true;
+ const result=h.c.submitEmailWorkflow_('t',r);
+ assert.equal(h.transactions.length,2);assert.equal(jobs.length,3);assert.equal(h.mail.length,1);
+ assert.deepEqual(jobs.map(j=>j['Printer Key']),['AP_TARDY','AP_COPIER','AP_COPIER']);
+ assert.equal(h.rendered[0].txs.length,2);h.c.submitEmailWorkflow_('t',r);assert.equal(jobs.length,3);
+}

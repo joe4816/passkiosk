@@ -1,6 +1,6 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.19-native-signin',
+  version: '0.3.20-output-selection',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: true,

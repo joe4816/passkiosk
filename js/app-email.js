@@ -21,7 +21,7 @@ function emailSubmissionRequest(request){
   const count=request.studentIds?.length||(request.studentId?1:0);
   if(count>(state.pdfEmail?.maxStudents||100))throw new Error('Email supports up to '+(state.pdfEmail?.maxStudents||100)+' students per submission. Split this basket into smaller batches. Nothing has been submitted.');
   const id=crypto.randomUUID();
-  return {...request,emailRequestId:id};
+  return {...request,emailRequestId:id,includePhysicalPrint:state.outputMode==='BOTH'};
 }
 
 function emailStatusText(delivery){
@@ -43,7 +43,7 @@ function showPdfEmailOutcome(delivery){
 
 function emailSettingsHtml(){
   if(!state.pdfEmail?.enabled)return '';
-  return `<div class="card"><h2>PDF Email</h2><div class="small muted">Letter-size PDFs go to your session email: <strong>${esc(state.pdfEmail.recipient)}</strong>. Bulk PDFs include each student and an error report when needed. Up to ${esc(state.pdfEmail.maxStudents||100)} students per email.</div><div class="submit-row"><button class="${state.outputMode==='EMAIL'?'primary':'secondary'}" onclick="selectEmailOutput()">${state.outputMode==='EMAIL'?'PDF email selected':'Use PDF email'}</button></div></div><div class="card"><h2>Email Delivery — Last Hour</h2><p class="small muted">Delivery retries reuse saved transactions. Google Mail acceptance does not confirm arrival in your inbox. Unconfirmed sends are never automatically resent.</p><button class="secondary" onclick="loadRecentPdfEmails()">Refresh status</button><div id="recentPdfEmails"><div class="small muted">Loading…</div></div></div>`;
+  return `<div class="card"><h2>PDF Email</h2><div class="small muted">Letter-size PDFs go to your session email: <strong>${esc(state.pdfEmail.recipient)}</strong>. Bulk PDFs include each student and an error report when needed. Up to ${esc(state.pdfEmail.maxStudents||100)} students per email.</div><div class="submit-row"><button class="${usePdfEmail()?'primary':'secondary'}" role="checkbox" aria-checked="${usePdfEmail()}" onclick="selectEmailOutput()">${usePdfEmail()?'✓ PDF email on':'PDF email off'}</button></div></div><div class="card"><h2>Email Delivery — Last Hour</h2><p class="small muted">Delivery retries reuse saved transactions. Google Mail acceptance does not confirm arrival in your inbox. Unconfirmed sends are never automatically resent.</p><button class="secondary" onclick="loadRecentPdfEmails()">Refresh status</button><div id="recentPdfEmails"><div class="small muted">Loading…</div></div></div>`;
 }
 
 async function selectEmailOutput(){
@@ -53,8 +53,10 @@ async function selectEmailOutput(){
     const config=await server('getPdfEmailConfig',token);
     if(state.token!==token)return;
     if(!config?.enabled||!config.recipient)throw new Error(config?.message||'PDF email is unavailable.');
-    state.pdfEmail=config;state.outputMode='EMAIL';updateContext();await renderSettings();
-    toast('PDF email selected');
+    const physical=state.currentPrinter&&state.currentPrinter.key!=='EMAIL_PDF';
+    if(usePdfEmail()&&!physical)return toast('Choose a printer before turning off your only output.',true);
+    state.pdfEmail=config;state.outputMode=usePdfEmail()?'PRINT':physical?'BOTH':'EMAIL';updateContext();await renderSettings();
+    toast(usePdfEmail()?'PDF email on':'PDF email off');
   }catch(err){toast(err.message,true)}
 }
 
@@ -79,3 +81,4 @@ async function retrySavedPdfEmail(id,button){
   }catch(err){toast((err.message||'Email retry was interrupted.')+' Refresh email status before retrying.',true,7000)}
   finally{if(button?.isConnected){button.disabled=false;button.textContent='Retry email only'}}
 }
+

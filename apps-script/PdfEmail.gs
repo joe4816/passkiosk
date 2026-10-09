@@ -146,7 +146,7 @@ function emailResult_(entry) {
 }
 
 function submitEmailWorkflow_(token, request) {
-  const session = requireSession_(token);
+  const session = sessionForPrinterRequest_(requireSession_(token),request,readHelperConfig_());
   const recipient = assertPdfEmailReady_(session, request);
   const deliveryId = 'PE-' + request.emailRequestId;
   const payload = Object.assign({}, request);
@@ -316,6 +316,7 @@ function pdfEmailFields_(tx, cfg) {
   add('Student', tx['Student Name']); add('Student number', tx['Student ID']); add('Grade', tx.Grade);
   if (tx.Workflow === 'PASS') {
     add('From', tx.From); add('To', tx.To);
+    add('Issued by', tx['Issued By']);
     add('Excused', tx.Excused === true ? '☑' : '☐');
   } else if (tx.Workflow === 'RQST') {
     add('Deliver to', [tx['Delivery Period'], tx['Delivery Room'] ? 'Rm ' + tx['Delivery Room'] : '', tx['Delivery Teacher']].filter(Boolean).join(' · '));

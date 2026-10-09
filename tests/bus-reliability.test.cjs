@@ -14,7 +14,7 @@ function fixture(){
   vm.createContext(c);
   for(const file of ['js/app-core.js','js/app-detention-settings.js','js/app-camera-utils.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),c);
   const run=code=>vm.runInContext(code,c);
-  run("state.lane='BUS';state.token='TOKEN';state.deviceId='D';state.student={studentId:'1',firstName:'Test',lastName:'One'};state.studentDetails={};state.laneValues.BUS={approvedByUsername:'approver'};state.bootstrap={studentIndex:[state.student,{studentId:'2',firstName:'Test',lastName:'Two'}]};");
+  run("state.lane='BUS';state.token='TOKEN';state.deviceId='D';state.student={studentId:'1',firstName:'Test',lastName:'One'};state.studentDetails={};state.laneValues.BUS={approvedByUsername:'approver',printerKey:'P'};state.bootstrap={printers:[{key:'P'}],adults:[{username:'approver',displayName:'Approver'}],studentIndex:[state.student,{studentId:'2',firstName:'Test',lastName:'Two'}]};");
   c.toast=(...args)=>notices.push(args);c.playBusAlertTone=()=>{};c.updateSelectedStudentArea=()=>{};c.afterStudentSelected=()=>{};c.adultOptions=()=>'';c.renderPass=()=>{};c.selectedIds=()=>run('state.basket.map(s=>s.studentId)');
   return {c,run,e:elements,button,timers,notices};
 }
@@ -102,3 +102,4 @@ async function main(){
   console.log('Activity Bus reliability: stale lookups/submits, lane reentry, student removal, ambiguous failures, malformed responses, stale timers, busy/held QR frames and bulk ownership passed.');
 }
 main().catch(err=>{console.error(err);process.exitCode=1});
+

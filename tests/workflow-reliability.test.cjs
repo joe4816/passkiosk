@@ -11,7 +11,7 @@ function fixture(){
   vm.createContext(c);
   for(const file of ['js/app-core.js','js/app-detention-settings.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),c);
   const run=code=>vm.runInContext(code,c);
-  run("state.lane='PASS';state.token='TOKEN';state.deviceId='D';state.bulk=true;state.basket=[{studentId:'1'}];state.bootstrap={studentIndex:[{studentId:'1'},{studentId:'2'}]};");
+  run("state.lane='PASS';state.token='TOKEN';state.deviceId='D';state.bulk=true;state.basket=[{studentId:'1'}];state.laneValues.PASS={helpUsername:'OPERATOR',printerKey:'P'};state.bootstrap={printers:[{key:'P'}],studentIndex:[{studentId:'1'},{studentId:'2'}]};");
   c.toast=(...args)=>notices.push(args);c.resetAfterSend=()=>resets++;c.renderRequest=()=>{};c.renderPass=()=>{};c.renderBus=()=>{};c.closeCamera=()=>{};c.updateSelectedStudentArea=()=>{};
   return {c,run,button,notices,resets:()=>resets};
 }
@@ -46,3 +46,4 @@ async function main(){
   console.log('Workflow recovery: double-tap guard, immutable basket while sending, stale lane ownership, uncertain/malformed replies, partial outcomes and configured feature gates passed.');
 }
 main().catch(err=>{console.error(err);process.exitCode=1});
+

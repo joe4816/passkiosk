@@ -141,3 +141,9 @@ button:focus-visible, .date-option:focus-visible { outline:3px solid var(--purpl
 .output-check input{width:20px;height:20px;flex:none;accent-color:#5d2da1}
 .google-signin{display:inline-block;text-decoration:none;min-height:44px;box-sizing:border-box;align-content:center}
 .app-build{margin-top:18px}
+.form-actions{align-items:flex-end;gap:12px;flex-wrap:wrap}
+.form-action-label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;min-width:150px;flex:1}
+.form-actions .field{width:100%;min-height:42px}
+.form-actions .primary{min-height:42px}
+.field[readonly]{background:#f4f1f8;color:#40364e}
+@media(max-width:560px){.form-actions .primary{width:100%}.form-action-label{min-width:130px}}

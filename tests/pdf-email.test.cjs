@@ -27,7 +27,8 @@ function harness(){
   getDetentionState_:()=>({counts:{},studentDates:{}}),valueToDateKey_:()=> '2026-10-06',
   submitBusWorkflow_:(t,r)=>{const tx={'Transaction ID':'BUS-'+ ++uuid,'Created At':new Date(),Status:'CREATED',Workflow:'BUS','Device ID':session.deviceId,'Session Username':session.username,'Session User':session.displayName,'Student ID':r.studentId,'Student Name':'Bus Student','Approved By':'Different Approver','Bus Assignment Count':2,'Bus Route(s)':'Route A\nRoute B','Bus Drop-off(s)':'Stop A\nStop B','Bus Snapshot':'#1 school time A\n#2 school time B','Bus Scan Type':r.allowDuplicate?'DUPLICATE':'NORMAL','Duplicate Of Transaction ID':r.allowDuplicate?'ORIGINAL':''};transactions.push(tx);return {ok:true,transactionId:tx['Transaction ID'],studentId:r.studentId,assignments:[{route:'A'},{route:'B'}],printingQueued:false};}
  });
- vm.runInContext(read('apps-script/WorkflowOptions.gs'),c);vm.runInContext(source,c);vm.runInContext(rpc,c);
+ vm.runInContext(read('apps-script/UserPreferences.gs'),c);vm.runInContext(read('apps-script/WorkflowOptions.gs'),c);vm.runInContext(source,c);vm.runInContext(rpc,c);
+ c.userPrinterPreferences_=()=>({initialized:false,defaultPrinterKey:'',workflows:{}});
  const realRenderer=c.buildPdfEmailAttachment_;
  c.emailSheet_=()=>({});c.findEmailDelivery_=id=>deliveries.get(id)||null;
  c.updateEmailDelivery_=(e,v)=>Object.assign(e.record,v,{'Updated At':new Date()});
@@ -110,7 +111,7 @@ async function clientChecks(){
     setTimeout,clearTimeout,setInterval,clearInterval,document:{addEventListener(){},querySelectorAll:()=>[button],getElementById:id=>nodes[id]||{classList:{add(){},remove(){}}}}});
   for(const p of ['js/app-core.js','js/app-email.js','js/app-detention-settings.js','js/app-camera-utils.js'])vm.runInContext(read(p),c);
   const run=js=>vm.runInContext(js,c);
-  run("state.token='T';state.deviceId='DEVICE';state.lane='PASS';state.outputMode='EMAIL';state.pdfEmail={enabled:true,recipient:'operator@nv.ccsd.net',maxStudents:100};state.bulk=true;state.basket=[{studentId:'1'}];");
+  run("state.token='T';state.deviceId='DEVICE';state.lane='PASS';state.laneValues.PASS={printerKey:'P'};state.bootstrap={printers:[{key:'P'}]};state.outputMode='EMAIL';state.pdfEmail={enabled:true,recipient:'operator@nv.ccsd.net',maxStudents:100};state.bulk=true;state.basket=[{studentId:'1'}];");
   c.toast=()=>{};c.resetAfterSend=()=>resets++;
   c.server=async(...args)=>{calls.push(args);return {ok:true,createdCount:1,errorCount:0,created:[{transactionId:'PK-1',studentId:'1'}],errors:[],emailDelivery:{deliveryId:'PE-ID',status:'FAILED',recipient:'operator@nv.ccsd.net',message:'PDF conversion failed',canRetry:true}};};
   return {c,run,button,notice,calls,resets:()=>resets};

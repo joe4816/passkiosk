@@ -85,7 +85,7 @@ function detentionPickupData_(student, data, session, cfg, now) {
   const today = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   if (!cfg.calendar.some(d => d.dateKey === today && d.status === 'ACTIVE')) throw processingError_('NO_PICKUP_SCHOOL_DAY', 'End-of-day pickup requests must be created on an active school day.');
   const minutes = bell.endMin - 10;
-  return {requestedByUsername:session.username, destination, when:'At:',
+  return {requestedByUsername:data.issuedByUsername || session.username, destination, when:'At:',
     atTime:String(Math.floor(minutes / 60)).padStart(2,'0') + ':' + String(minutes % 60).padStart(2,'0'),
     reasons:['Pick up detention notice.'], otherReason:'', deliveryMode:'PERIOD', deliveryPeriod:'P6'};
 }

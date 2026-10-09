@@ -5,6 +5,7 @@ async function enterEmailPassKiosk(){
   try{
     const res=await server('startEmailSession',state.identified.username,state.deviceId);
     if(!res||res.ok!==true||!res.token||!res.pdfEmail?.enabled||!res.pdfEmail.recipient)throw new Error('Email session could not be verified.');
+    if(!state.identified.printerPreferences?.initialized || state.repairDefaultPrinter){await server('savePrinterPreference',res.token,'DEFAULT','EMAIL_PDF');state.repairDefaultPrinter=false;}
     const bootstrap=await server('getBootstrapData',res.token);
     state.token=res.token;state.bootstrap=bootstrap;state.session=bootstrap.session;
     state.currentPrinter=res.printer;state.pdfEmail=res.pdfEmail;state.outputMode='EMAIL';
@@ -21,7 +22,7 @@ function emailSubmissionRequest(request){
   const count=request.studentIds?.length||(request.studentId?1:0);
   if(count>(state.pdfEmail?.maxStudents||100))throw new Error('Email supports up to '+(state.pdfEmail?.maxStudents||100)+' students per submission. Split this basket into smaller batches. Nothing has been submitted.');
   const id=crypto.randomUUID();
-  return {...request,emailRequestId:id,includePhysicalPrint:state.outputMode==='BOTH'};
+  return {...request,emailRequestId:id,includePhysicalPrint:request.printerKey?request.printerKey!=='EMAIL_PDF':state.outputMode==='BOTH'};
 }
 
 function emailStatusText(delivery){

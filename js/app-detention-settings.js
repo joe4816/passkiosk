@@ -1,4 +1,4 @@
-function renderDetention(lunch){const lane=lunch?'LUNCH_DET':'DET',v=state.laneValues[lane],title=lunch?'Lunch Detention':'After-School Detention';document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:true})}<div class="card"><div class="lane-title"><h2>${title}</h2>${lunch?lunchFoodArt():''}</div><div class="form-row"><label>Reason <span class="required-star">*</span></label><select id="detReason" class="field" onchange="toggleDetOther()"><option value=""></option>${detentionReasonOptions()}</select></div><div id="detOtherRow" class="form-row hidden"><label>Other <span class="required-star">*</span></label><input id="detOther" class="field"></div><div class="grid2"><div class="form-row"><label>Issued By</label><select id="detIssuedBy" class="field" onchange="state.laneValues['${lane}'].issuedByUsername=this.value">${adultOptions(v.issuedByUsername)}</select></div><div class="form-row"><label>Report To <span class="required-star">*</span></label><input id="detReportTo" class="field" value="${attr(v.reportTo)}" oninput="state.laneValues['${lane}'].reportTo=this.value"></div></div><div id="detDateArea" class="form-row"><div class="small muted">Loading detention availability…</div></div>${detentionExtrasHtml(lane)}<div class="submit-row"><button class="primary" onclick="submitDetention(${lunch?'true':'false'})">Send</button></div></div>`;updateSelectedStudentArea();loadDetentionAvailability()}
+function renderDetention(lunch){const lane=lunch?'LUNCH_DET':'DET',v=state.laneValues[lane],title=lunch?'Lunch Detention':'After-School Detention';document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:true})}<div class="card"><div class="lane-title"><h2>${title}</h2>${lunch?lunchFoodArt():''}</div><div class="form-row"><label>Reason <span class="required-star">*</span></label><select id="detReason" class="field" onchange="toggleDetOther()"><option value=""></option>${detentionReasonOptions()}</select></div><div id="detOtherRow" class="form-row hidden"><label>Other <span class="required-star">*</span></label><input id="detOther" class="field"></div><div class="grid2"><div class="form-row"><label>Issued By</label>${adultDisplayHtml(lane,'detIssuedBy')}</div><div class="form-row"><label>Report To <span class="required-star">*</span></label><input id="detReportTo" class="field" value="${attr(v.reportTo)}" oninput="state.laneValues['${lane}'].reportTo=this.value"></div></div><div id="detDateArea" class="form-row"><div class="small muted">Loading detention availability…</div></div>${detentionExtrasHtml(lane)}${formActionsHtml(lane,"submitDetention("+(lunch?'true':'false')+")")}</div>`;updateSelectedStudentArea();loadDetentionAvailability()}
 function detentionReasonOptions(){let last='',html='';(state.bootstrap.detentionReasons||[]).forEach(x=>{if(last&&x.group!==last)html+='<option disabled>──────────</option>';html+=`<option>${esc(x.reason)}</option>`;last=x.group});return html}
 function toggleDetOther(){const v=document.getElementById('detReason').value;document.getElementById('detOtherRow').classList.toggle('hidden',v!=='Other')}
 function lunchFoodArt(){return '<img class="lunch-food-art" src="assets/lunch-food-line-art.png" alt="" aria-hidden="true" width="360" height="60">'}
@@ -17,7 +17,7 @@ async function loadDetentionAvailability(){
 
 function renderDetentionDates(){const box=document.getElementById('detDateArea'),a=state.detentionAvailability;if(!box||!a)return;if(state.bulk){state.detentionDate='';box.innerHTML=`<label>Starting suggested date</label><div class="route-box"><div class="route-main">${esc(a.suggestedDisplay||'No available date')}</div><div class="small muted">Bulk scheduling processes students one-by-one and may move later students forward.</div></div>`;return}const dates=a.dates||[];const currentStillSelectable=dates.some(d=>d.dateKey===state.detentionDate&&d.selectable);if(!state.detentionDate||!currentStillSelectable)state.detentionDate=a.suggestedDate||'';box.innerHTML=`<label>Detention Date <span class="required-star">*</span></label>${dates.map(d=>`<div class="date-option ${d.dateKey===state.detentionDate?'selected':''} ${!d.selectable?'full':''}" ${d.selectable?`onclick="selectDetentionDate('${d.dateKey}')"`:''}><span><strong>${esc(d.display)}</strong><br><span class="small muted">${d.count} assigned</span></span><span class="pill ${d.full?'full':''}">${d.full?'FULL':d.duplicate?'ALREADY ASSIGNED':'AVAILABLE'}</span></div>`).join('')}`}
 function selectDetentionDate(key){state.detentionDate=key;renderDetentionDates()}
-async function submitDetention(lunch){if(state.detentionLoading)return toast('Checking detention dates. Please wait.');if(!state.detentionAvailability)return toast('Retry the detention date lookup before sending.',true);clearAllInvalid();if(!selectedIds().length)return toast('Choose a student.',true);const reason=document.getElementById('detReason'),other=document.getElementById('detOther'),report=document.getElementById('detReportTo');if(!reason.value)return invalidStop(reason,'Reason is required.');if(reason.value==='Other'&&!other.value.trim())return invalidStop(other,'Enter the Other reason.');if(!report.value.trim())return invalidStop(report,'Report To is required.');if(!state.bulk&&!state.detentionDate)return toast('Choose a detention date.',true);const extra=detentionExtraSubmission();if(extra.createPickupRequest&&!extra.pickupDestination.trim())return invalidStop(document.getElementById('detPickupDestination'),'Send student to is required.');await submitLane({workflow:lunch?'LUNCH_DET':'DET',bulk:state.bulk,studentIds:selectedIds(),data:{...extra,reason:reason.value,otherReason:other.value.trim(),issuedByUsername:document.getElementById('detIssuedBy').value,reportTo:report.value.trim(),detentionDate:state.bulk?'':state.detentionDate}})}
+async function submitDetention(lunch){if(state.detentionLoading)return toast('Checking detention dates. Please wait.');if(!state.detentionAvailability)return toast('Retry the detention date lookup before sending.',true);clearAllInvalid();if(!selectedIds().length)return toast('Choose a student.',true);const reason=document.getElementById('detReason'),other=document.getElementById('detOther'),report=document.getElementById('detReportTo');if(!reason.value)return invalidStop(reason,'Reason is required.');if(reason.value==='Other'&&!other.value.trim())return invalidStop(other,'Enter the Other reason.');if(!report.value.trim())return invalidStop(report,'Report To is required.');if(!state.bulk&&!state.detentionDate)return toast('Choose a detention date.',true);const extra=detentionExtraSubmission();if(extra.createPickupRequest&&!extra.pickupDestination.trim())return invalidStop(document.getElementById('detPickupDestination'),'Send student to is required.');await submitLane({workflow:lunch?'LUNCH_DET':'DET',bulk:state.bulk,studentIds:selectedIds(),data:{...extra,reason:reason.value,otherReason:other.value.trim(),issuedByUsername:state.laneValues[lunch?'LUNCH_DET':'DET'].helpUsername,reportTo:report.value.trim(),detentionDate:state.bulk?'':state.detentionDate}})}
 
 function activityBusEnabled(){return Boolean(window.PASSKIOSK_CONFIG&&window.PASSKIOSK_CONFIG.features&&window.PASSKIOSK_CONFIG.features.activityBusData)}
 
@@ -33,7 +33,7 @@ function busContextIsCurrent(context){
 function renderBus(){
   const v=state.laneValues.BUS;
   const ready=activityBusEnabled();
-  document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:true})}<div class="card"><h2>Activity Bus</h2><div class="form-row"><label>Approved By</label><select id="busApprovedBy" class="field" onchange="state.laneValues.BUS.approvedByUsername=this.value">${adultOptions(v.approvedByUsername)}</select></div><div id="busStudentStatus" class="bus-pending">${ready?(state.bulk?'Add students to the basket, then Send. Each student’s Bus From assignments will be checked separately.':'Scan or choose a student. Bus From transportation assignments will be checked automatically.'):'Activity Bus data integration is staged but not enabled against the production backend yet.'}</div>${state.bulk?`<div class="submit-row"><button class="primary" onclick="submitBusBulk()" ${ready?'':'disabled'}>Send</button></div>`:''}</div>`;
+  document.getElementById('workspace').innerHTML=`${studentPickerHtml({allowBulk:true})}<div class="card"><h2>Activity Bus</h2><div class="form-row"><label>Approved By</label>${adultDisplayHtml('BUS','busApprovedBy')}</div><div class="form-row"><label>Location</label><input id="busAdultLocation" class="field" value="${attr(v.location||helpAdult('BUS').defaultLocation)}" readonly></div><div id="busStudentStatus" class="bus-pending">${ready?(state.bulk?'Add students to the basket, then Send. Each student’s Bus From assignments will be checked separately.':'Scan or choose a student. Bus From transportation assignments will be checked automatically.'):'Activity Bus data integration is staged but not enabled against the production backend yet.'}</div>${formActionsHtml('BUS',state.bulk?'submitBusBulk()':'submitBusPass(false)',!ready)}</div>`;
   updateSelectedStudentArea();
 }
 
@@ -93,7 +93,7 @@ async function submitBusPass(allowDuplicate){
 
   const context=busContext();
   const approved=document.getElementById('busApprovedBy');
-  const approvedByUsername=approved?approved.value:state.laneValues.BUS.approvedByUsername;
+  const approvedByUsername=state.laneValues.BUS.helpUsername||state.laneValues.BUS.approvedByUsername;
   state.laneValues.BUS.approvedByUsername=approvedByUsername;
 
   clearBusResetTimer();
@@ -104,7 +104,7 @@ async function submitBusPass(allowDuplicate){
 
   try{
     const emailMode=usePdfEmail();
-    const request={deviceId:state.deviceId,studentId:context.studentId,approvedByUsername,allowDuplicate:Boolean(allowDuplicate)};
+    const request=withLaneChoices({deviceId:state.deviceId,studentId:context.studentId,approvedByUsername,allowDuplicate:Boolean(allowDuplicate)},'BUS');
     const res=await server(emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
       emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
     if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
@@ -156,7 +156,7 @@ async function submitBusBulk(){
   if(!ids.length)return toast('Choose a student.',true);
   const context=busContext();
   const approved=document.getElementById('busApprovedBy');
-  const approvedByUsername=approved?approved.value:state.laneValues.BUS.approvedByUsername;
+  const approvedByUsername=state.laneValues.BUS.helpUsername||state.laneValues.BUS.approvedByUsername;
   state.laneValues.BUS.approvedByUsername=approvedByUsername;
   clearBusResetTimer();
   state.busOverride=null;
@@ -166,7 +166,7 @@ async function submitBusBulk(){
   if(button){button.disabled=true;button.textContent='Sending…'}
   try{
     const emailMode=usePdfEmail();
-    const request={deviceId:state.deviceId,bulk:true,studentIds:ids,approvedByUsername};
+    const request=withLaneChoices({deviceId:state.deviceId,bulk:true,studentIds:ids,approvedByUsername},'BUS');
     const res=await server(emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
       emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
     if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
@@ -331,17 +331,25 @@ function playBusAlertTone(){
   }catch(_){ }
 }
 
-async function renderSettings(){document.getElementById('workspace').innerHTML=`${typeof emailSettingsHtml==='function'?emailSettingsHtml():''}<div class="card"><h2>Settings</h2><div class="section-title">PRINTER</div><div id="settingsPrinters" class="settings-printers"></div></div><div class="card"><h2>Recently Sent — Last 5 Minutes</h2><div id="recentJobs"><div class="small muted">Loading…</div></div></div><div class="card"><button class="danger-btn" onclick="logout()">Sign Out</button></div>`;renderSettingsPrinters();await loadRecentJobs();if(typeof loadRecentPdfEmails==='function')await loadRecentPdfEmails()}
-function renderSettingsPrinters(){const box=document.getElementById('settingsPrinters');if(!box)return;box.innerHTML=(state.bootstrap.printers||[]).map(p=>`<button class="settings-printer ${p.key===state.currentPrinter?.key?'current':''}" onclick="setPrinter('${p.key}')">${esc(p.friendlyName)}</button>`).join('')}
-async function setPrinter(key){try{const res=await server('changePrinter',state.token,key);const email=usePdfEmail();state.currentPrinter=res.printer;state.outputMode=email?'BOTH':'PRINT';appStorage.setItem('PassKioskLastPrinter:'+state.session.username,key);updateContext();renderSettingsPrinters();toast('Printer changed to '+res.printer.friendlyName)}catch(err){toast(err.message,true)}}
+async function renderSettings(){document.getElementById('workspace').innerHTML=`${typeof emailSettingsHtml==='function'?emailSettingsHtml():''}<div class="card"><h2>Settings</h2><div class="section-title">DEFAULT PRINTER</div><div class="small muted">Each form keeps its own saved printer. Changing this default preserves those choices.</div><div id="settingsPrinters" class="settings-printers"></div></div><div class="card"><h2>Recently Sent — Last 5 Minutes</h2><div id="recentJobs"><div class="small muted">Loading…</div></div></div><div class="card"><button class="danger-btn" onclick="logout()">Sign Out</button></div>`;renderSettingsPrinters();await loadRecentJobs();if(typeof loadRecentPdfEmails==='function')await loadRecentPdfEmails()}
+function renderSettingsPrinters(){const box=document.getElementById('settingsPrinters');if(!box)return;box.innerHTML=(state.bootstrap.printers||[]).map(p=>`<button class="settings-printer ${p.key===(state.printerPreferences?.defaultPrinterKey||state.currentPrinter?.key)?'current':''}" onclick="setPrinter('${p.key}')">${esc(p.friendlyName)}</button>`).join('')}
+async function setPrinter(key){
+  if(state.submitting||state.busWritePending)return;
+  const token=state.token;
+  try{const res=await server('savePrinterPreference',token,'DEFAULT',key);if(state.token!==token)return;
+    if(!res?.ok||!res.printerPreferences)throw new Error('Default printer was not confirmed.');
+    state.printerPreferences=res.printerPreferences;syncLanePrinter();renderSettingsPrinters();toast('Default printer saved. Your form choices are unchanged.');
+  }catch(err){toast(err.message,true)}
+}
 async function loadRecentJobs(){const box=document.getElementById('recentJobs');if(!box)return;try{state.recentJobs=await server('getRecentPrintJobs',state.token,state.deviceId);if(!state.recentJobs.length){box.innerHTML='<div class="small muted">Nothing sent from this device in the last five minutes.</div>';return}box.innerHTML=state.recentJobs.map(j=>`<div class="job" onclick="openReprint('${attr(j.printJobId)}')"><span class="small">${formatTime(j.attemptedAt)}</span><span><strong>${esc(j.studentName||j.transactionId)}</strong><br><span class="small muted">${esc(workflowLabel(j.workflow))} · ${esc(j.printerName)}</span></span><span class="status-${esc(j.status)}">${statusIcon(j.status)}</span></div>`).join('')}catch(err){box.innerHTML=`<div class="small" style="color:var(--danger)">${esc(err.message)}</div>`}}
-function openReprint(id){const job=state.recentJobs.find(x=>x.printJobId===id);if(!job)return;state.pendingReprint=job;document.getElementById('confirmText').innerHTML=`About to resend <strong>${esc(job.studentName||job.transactionId)}</strong> to:<br><br><strong>${esc(state.currentPrinter.friendlyName)}</strong>`;document.getElementById('confirmModal').classList.remove('hidden')}
+function openReprint(id){const job=state.recentJobs.find(x=>x.printJobId===id);if(!job)return;if(!state.currentPrinter||state.currentPrinter.key==='EMAIL_PDF')return toast('Choose a physical default printer in Settings before reprinting.',true);state.pendingReprint=job;document.getElementById('confirmText').innerHTML=`About to resend <strong>${esc(job.studentName||job.transactionId)}</strong> to:<br><br><strong>${esc(state.currentPrinter.friendlyName)}</strong>`;document.getElementById('confirmModal').classList.remove('hidden')}
 function closeConfirm(){state.pendingReprint=null;document.getElementById('confirmModal').classList.add('hidden')}
-async function confirmReprint(){const job=state.pendingReprint;if(!job)return;try{await server('reprintJob',state.token,state.deviceId,job.printJobId);closeConfirm();toast('Reprint queued for '+state.currentPrinter.friendlyName);await loadRecentJobs()}catch(err){toast(err.message,true)}}
+async function confirmReprint(){const job=state.pendingReprint;if(!job)return;try{await server('reprintJob',state.token,state.deviceId,job.printJobId,state.currentPrinter.key);closeConfirm();toast('Reprint queued for '+state.currentPrinter.friendlyName);await loadRecentJobs()}catch(err){toast(err.message,true)}}
 async function logout(){try{await server('signOut',state.token)}catch(_){ }location.reload()}
 
 async function submitLane(request){
   if(state.submitting)return toast('A submission is still in progress. Please wait.',true);
+  try{request=withLaneChoices(request)}catch(err){return toast(err.message,true)}
   if(usePdfEmail()&&(request.studentIds||[]).length>(state.pdfEmail.maxStudents||100))return toast('Email supports up to '+(state.pdfEmail.maxStudents||100)+' students per submission. Split the basket; nothing has been submitted.',true);
   const context={epoch:state.busEpoch,lane:state.lane,token:state.token};
   state.submitting=true;
@@ -375,5 +383,5 @@ async function submitLane(request){
 }
 function resetAfterSend(){invalidateStudentLookup();const lane=state.lane,wasBulk=state.bulk;state.student=null;state.studentDetails=null;state.basket=[];state.detentionAvailability=null;state.requestDeliveryMode='AUTO';state.requestDeliveryPeriod='';state.requestWhen='';state.detentionDate='';state.classChoices={};state.bulk=wasBulk;if(lane==='PASS')renderPass();if(lane==='RQST')renderRequest();if(lane==='DET')renderDetention(false);if(lane==='LUNCH_DET')renderDetention(true);if(lane==='BUS')renderBus()}
 
-function usePdfEmail(){return ['EMAIL','BOTH'].includes(state.outputMode)&&Boolean(state.pdfEmail&&state.pdfEmail.enabled)}
+function usePdfEmail(){return (['EMAIL','BOTH'].includes(state.outputMode)||selectedLanePrinterKey()==='EMAIL_PDF')&&Boolean(state.pdfEmail&&state.pdfEmail.enabled)}
 

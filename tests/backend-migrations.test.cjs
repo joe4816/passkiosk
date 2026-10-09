@@ -12,8 +12,8 @@ const c={console,Date,PK:{TRANSACTIONS_SHEET:'Transactions',TIME_ZONE_FALLBACK:'
   passSheet_:()=>({getSheetByName:()=>({getLastColumn:()=>2,getRange:()=>({getDisplayValues:()=>[errorHeader?['Transaction ID','Excused']:['Transaction ID','Notes']]})})}),
   buildRequestTx_:tx=>tx,buildDetentionTx_:tx=>tx};
 vm.createContext(c);
-for(const file of ['DetentionAvailability.gs','PassExcused.gs'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),c);
-const dates=['2030-01-02','2030-01-03','2030-01-04','2030-01-05','2030-01-06','2030-01-07'];
+for(const file of ['DetentionWeekdayPolicy.gs','DetentionAvailability.gs','PassExcused.gs'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),c);
+const dates=['2030-01-02','2030-01-03','2030-01-07','2030-01-08','2030-01-09','2030-01-10'];
 function config(windowDays=0,maxPerDay=0){const d={windowDays,maxPerDay,defaultLocation:'Room',directions:['Report']};return {sources:{timeZone:'America/Los_Angeles'},detention:{afterSchool:{...d},lunch:{...d}},calendar:[{dateKey:'2029-12-31',status:'ACTIVE'},{dateKey:'2030-01-01',status:'ACTIVE'},...dates.map(dateKey=>({dateKey,status:'ACTIVE'}))]}}
 const student={studentId:'1',firstName:'Test',lastName:'Student',grade:'7'};
 const available=(cfg,counts,studentDates={},type='AFTER_SCHOOL')=>c.buildDetentionAvailability_(type,student,cfg,{counts,studentDates});
@@ -47,3 +47,4 @@ assert.throws(()=>pass({from:''}),/FROM is required/);assert.throws(()=>pass({re
 const headers=['Transaction ID','Excused','Reason(s)'];assert.equal(headers.map(h=>tx[h])[1],true);
 errorHeader=false;assert.throws(()=>pass({excused:true}),err=>err.code==='MISSING_EXCUSED_HEADER');
 console.log('Backend replacement patches: zero/positive windows, eligible-day filtering, ties, capacity/duplicate exclusions, lunch/bulk balancing, strict Excused booleans and schema guard passed.');
+

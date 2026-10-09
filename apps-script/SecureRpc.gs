@@ -29,6 +29,11 @@ function staffRpc(fn, args) {
     return startEmailSession_(adult.username, a[1], 'STAFF', requireCcsdStaffEmail_());
   }
 
+  if (method === 'savePrinterPreference') {
+    const session = requireSession_(a[0]);
+    if (session.username !== adult.username) throw new Error('Printer preferences must use your own authenticated session.');
+  }
+
   if (['getPdfEmailConfig', 'submitEmailWorkflow', 'getRecentPdfEmails', 'retryPdfEmail'].includes(method)) {
     const session = requireSession_(a[0]);
     if (session.username !== adult.username || session.emailAuthMode !== 'STAFF') {
@@ -75,13 +80,19 @@ function dispatchPassKioskRpc_(fn, args) {
       if (typeof pdfEmailFrontConfig_ === 'function') result.pdfEmail = pdfEmailFrontConfig_();
       return result;
     }
-    case 'identifyAdult': return identifyAdult_(...a);
+    case 'identifyAdult': {
+      const result = identifyAdult_(...a);
+      if (result.ok) result.printerPreferences = userPrinterPreferences_(result.username);
+      return result;
+    }
     case 'startSession': return startSession_(...a);
     case 'signOut': return signOut_(...a);
     case 'changePrinter': return changePrinter_(...a);
+    case 'savePrinterPreference': return savePrinterPreference_(...a);
     case 'getBootstrapData': {
       const result = getBootstrapData_(...a);
       if (typeof getPdfEmailConfig_ === 'function') result.pdfEmail = getPdfEmailConfig_(a[0]);
+      result.printerPreferences = userPrinterPreferences_(result.session.username);
       return result;
     }
     case 'getPdfEmailConfig': return getPdfEmailConfig_(...a);
@@ -156,8 +167,8 @@ function getRecentPrintJobs(token, deviceId) {
   return staffRpc('getRecentPrintJobs', [token, deviceId]);
 }
 
-function reprintJob(token, deviceId, printJobId) {
-  return staffRpc('reprintJob', [token, deviceId, printJobId]);
+function reprintJob(token, deviceId, printJobId, printerKey) {
+  return staffRpc('reprintJob', [token, deviceId, printJobId, printerKey]);
 }
 
 /* ========================================================================== */
@@ -191,7 +202,8 @@ function authenticatedAdultPayload_(adult) {
     displayName: adult.displayName,
     role: adult.role,
     defaultLocation: adult.defaultLocation,
-    sig: adult.sig
+    sig: adult.sig,
+    printerPreferences: userPrinterPreferences_(adult.username)
   };
 }
 
@@ -229,4 +241,5 @@ function getPdfEmailConfig(token) { return staffRpc('getPdfEmailConfig', [token]
 function submitEmailWorkflow(token, request) { return staffRpc('submitEmailWorkflow', [token, request]); }
 function getRecentPdfEmails(token, deviceId) { return staffRpc('getRecentPdfEmails', [token, deviceId]); }
 function retryPdfEmail(token, deviceId, id) { return staffRpc('retryPdfEmail', [token, deviceId, id]); }
+function savePrinterPreference(token, workflow, printerKey) { return staffRpc('savePrinterPreference', [token, workflow, printerKey]); }
 

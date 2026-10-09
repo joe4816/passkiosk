@@ -71,7 +71,7 @@ function getBusInfoForSession_(token, studentId) {
 }
 
 function submitBusWorkflow_(token, request) {
-  const session = requireSession_(token);
+  const session = sessionForPrinterRequest_(requireSession_(token),request,readHelperConfig_());
   const cfg = readHelperConfig_();
 
   if (!request || typeof request !== 'object') throw new Error('Missing Activity Bus submission.');
@@ -201,7 +201,7 @@ function buildBusTransaction_(transactionId, now, session, student, approved, lo
       'Approved By Username': approved.username,
       'Approved By': approved.displayName,
       'Signature File': approved.sig || '',
-      'From': '',
+      'From': approved.defaultLocation || '',
       'To': '',
       'Reason(s)': '',
       'Other Reason': '',
@@ -591,3 +591,4 @@ function testBusIntegration_() {
     transactionHeadersPresent: true
   };
 }
+

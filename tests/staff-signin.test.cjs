@@ -12,7 +12,7 @@ function fixture(mode='staff'){
 test('staff sees Google sign-in before backend calls and no identity picker',async()=>{
   const f=fixture();await f.context.init();assert.deepEqual(f.calls,[]);
   assert.match(f.elements.identityLoadingPane.innerHTML,/Continue with Google/);
-  assert.match(f.elements.identityLoadingPane.innerHTML,/0.3.20-output-selection/);
+  assert.match(f.elements.identityLoadingPane.innerHTML,/0.3.21-help-printers/);
   assert.equal(f.elements.identifyPane.classList.hidden,true);
   await f.context.completeStaffSignIn();
   assert.deepEqual(f.calls,['reconnect','getAuthenticatedProfile','getFrontDoorConfig','printers']);

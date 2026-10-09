@@ -6,7 +6,7 @@ function buildDetentionAvailability_(type, student, cfg, inMemory) {
   const todayKey = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
 
   const future = cfg.calendar
-    .filter(d => d.status === 'ACTIVE' && d.dateKey > todayKey)
+    .filter(d => d.status === 'ACTIVE' && d.dateKey > todayKey && isDetentionWeekdayAllowed_(type, d.dateKey))
     .sort((a,b) => a.dateKey.localeCompare(b.dateKey));
 
   const state = inMemory || getDetentionState_(workflow);

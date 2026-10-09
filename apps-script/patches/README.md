@@ -2,6 +2,14 @@
 
 These patches are based on the captured `PassKiosk_Code_secure.gs` from 2026-10-02. They are **not installed or deployed**. Compare the live functions before replacing them and preserve any newer changes. Do not upload these files alongside existing functions with the same names.
 
+## After-school weekday rule — installed 2026-10-09
+
+`DetentionWeekdayPolicy.gs` captures the live replacement functions and read-only regression test. Installed in Code.gs and published on the existing staff web app as version 22. After-school detention uses Monday–Thursday active school days; lunch retains Friday availability. Filtering occurs before date choices and suggestion windows, and manual Friday submissions fail server-side. Bulk assignments use the same availability function. Calendar status, capacity and duplicate checks remain in force.
+
+Do not add duplicate definitions: replace `buildDetentionAvailability_` and `validateManualDetentionDate_`, and add `isDetentionWeekdayAllowed_` plus `testDetentionWeekdayPolicy` once. The read-only live check passed with dates October 12–15 and 19; Friday manual rejection and Friday lunch acceptance both passed. Transactions contained no detention assignments at the audit, so no existing records required rescheduling.
+
+The older zero-window patch below remains pending; it now calls the weekday helper so installing it cannot reintroduce Friday after-school dates. Install the helper first. The production weekday correction preserved the existing zero-window behavior.
+
 ## Detention zero-window rule
 
 Replace only `buildDetentionAvailability_` in Code.gs with the function in `DetentionAvailability.gs`.

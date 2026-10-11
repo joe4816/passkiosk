@@ -83,6 +83,7 @@ async function renderBusStudentStatus(){
     return;
   }
 
+  if(usePdfDownload()){box.className='bus-status bus-success';box.innerHTML=busAssignmentsHtml(info.assignments)+'<div class="small">Use + to add this pass to the PDF batch.</div>';return;}
   await submitBusPass(false);
 }
 
@@ -103,14 +104,15 @@ async function submitBusPass(allowDuplicate){
   box.innerHTML=`<strong>${allowDuplicate?'Recording duplicate…':'Recording Activity Bus pass…'}</strong>`;
 
   try{
-    const emailMode=usePdfEmail();
+    const emailMode=usePdfEmail(),pdfMode=usePdfDownload('BUS');
     const request=withLaneChoices({deviceId:state.deviceId,studentId:context.studentId,approvedByUsername,allowDuplicate:Boolean(allowDuplicate)},'BUS');
-    const res=await server(emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
-      emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
+    const res=await server(pdfMode?'addPdfWorkflow':emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
+      pdfMode?pdfAddRequest({...request,workflow:'BUS'}):emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
     if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
 
     if(!busContextIsCurrent(context))return;
     if(!res||res.ok!==true){
+      if(pdfMode&&res?.ok===false)state.pendingPdfAdd=null;
       if(res&&res.code==='ALREADY_SCANNED_TODAY'){
         const info={assignments:res.assignments||state.busInfo?.assignments||[],priorTransactionId:res.priorTransactionId||''};
         playBusAlertTone();
@@ -132,6 +134,7 @@ async function submitBusPass(allowDuplicate){
     if(res.studentId!==context.studentId||!res.transactionId||!Array.isArray(res.assignments)){
       throw new Error('Activity Bus submission response could not be verified.');
     }
+    if(pdfMode)acceptPdfAdd(res,'BUS');
     state.busInfo=res;
     state.busOverride=null;
     box.className='bus-status bus-success';
@@ -165,10 +168,10 @@ async function submitBusBulk(){
   const button=document.querySelector('#workspace .submit-row .primary');
   if(button){button.disabled=true;button.textContent='Sending…'}
   try{
-    const emailMode=usePdfEmail();
+    const emailMode=usePdfEmail(),pdfMode=usePdfDownload('BUS');
     const request=withLaneChoices({deviceId:state.deviceId,bulk:true,studentIds:ids,approvedByUsername},'BUS');
-    const res=await server(emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
-      emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
+    const res=await server(pdfMode?'addPdfWorkflow':emailMode?'submitEmailWorkflow':'submitBusWorkflow',context.token,
+      pdfMode?pdfAddRequest({...request,workflow:'BUS'}):emailMode?emailSubmissionRequest({...request,workflow:'BUS'}):request);
     if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
     if(!res||res.ok!==true||res.bulk!==true||!res.batchRoot||!Array.isArray(res.created)||!Array.isArray(res.errors)||
         res.createdCount!==res.created.length||res.errorCount!==res.errors.length||
@@ -177,6 +180,7 @@ async function submitBusBulk(){
         [...res.created,...res.errors].some(r=>!ids.includes(r.studentId))){
       throw new Error('Activity Bus bulk response could not be verified. Check Transactions before trying again.');
     }
+    if(pdfMode&&state.token===context.token)acceptPdfAdd(res,'BUS');
     if(busContextIsCurrent(context)){
       resetAfterSend();
       const box=document.getElementById('busStudentStatus');
@@ -191,7 +195,7 @@ async function submitBusBulk(){
   }finally{
     state.submitting=false;
     state.busWritePending=false;
-    if(button&&button.isConnected){button.disabled=false;button.textContent='Send'}
+    if(button&&button.isConnected){button.disabled=false;button.textContent=usePdfDownload('BUS')?'+':'Send'}
   }
 }
 
@@ -331,7 +335,7 @@ function playBusAlertTone(){
   }catch(_){ }
 }
 
-async function renderSettings(){document.getElementById('workspace').innerHTML=`${typeof emailSettingsHtml==='function'?emailSettingsHtml():''}<div class="card"><h2>Settings</h2><div class="section-title">DEFAULT PRINTER</div><div class="small muted">Each form keeps its own saved printer. Changing this default preserves those choices.</div><div id="settingsPrinters" class="settings-printers"></div></div><div class="card"><h2>Recently Sent — Last 5 Minutes</h2><div id="recentJobs"><div class="small muted">Loading…</div></div></div><div class="card"><button class="danger-btn" onclick="logout()">Sign Out</button></div>`;renderSettingsPrinters();await loadRecentJobs();if(typeof loadRecentPdfEmails==='function')await loadRecentPdfEmails()}
+async function renderSettings(){document.getElementById('workspace').innerHTML=`${typeof filingSettingsHtml==='function'?filingSettingsHtml():''}<div id="pdfDownloadResult" class="hidden"></div>${typeof emailSettingsHtml==='function'?emailSettingsHtml():''}<div class="card"><h2>Settings</h2><div class="section-title">DEFAULT PRINTER</div><div class="small muted">Each form keeps its own saved printer. Changing this default preserves those choices.</div><div id="settingsPrinters" class="settings-printers"></div></div><div class="card"><h2>Recently Sent — Last 5 Minutes</h2><div id="recentJobs"><div class="small muted">Loading…</div></div></div><div class="card"><button class="danger-btn" onclick="logout()">Sign Out</button></div>`;renderSettingsPrinters();await loadRecentJobs();if(typeof loadRecentPdfEmails==='function')await loadRecentPdfEmails()}
 function renderSettingsPrinters(){const box=document.getElementById('settingsPrinters');if(!box)return;box.innerHTML=(state.bootstrap.printers||[]).map(p=>`<button class="settings-printer ${p.key===(state.printerPreferences?.defaultPrinterKey||state.currentPrinter?.key)?'current':''}" onclick="setPrinter('${p.key}')">${esc(p.friendlyName)}</button>`).join('')}
 async function setPrinter(key){
   if(state.submitting||state.busWritePending)return;
@@ -357,16 +361,17 @@ async function submitLane(request){
   submitButtons.forEach(b=>{b.disabled=true;b.dataset.originalText=b.textContent;b.textContent='Sending…'});
   try{
     request.deviceId=state.deviceId;
-    const emailMode=usePdfEmail();
-    const res=await server(emailMode?'submitEmailWorkflow':'submitWorkflow',context.token,
-      emailMode?emailSubmissionRequest(request):request);
+    const emailMode=usePdfEmail(),pdfMode=usePdfDownload();
+    const res=await server(pdfMode?'addPdfWorkflow':emailMode?'submitEmailWorkflow':'submitWorkflow',context.token,
+      pdfMode?pdfAddRequest(request):emailMode?emailSubmissionRequest(request):request);
     if(emailMode&&state.token===context.token)showPdfEmailOutcome(res.emailDelivery);
     if(!res||res.ok!==true||!Array.isArray(res.created)||!Array.isArray(res.errors)||
         res.createdCount!==res.created.length||res.errorCount!==res.errors.length){
       throw new Error('Submission response could not be verified.');
     }
-    if(res.errorCount)toast(`${res.createdCount} created; ${res.errorCount} require attention.`,true);
-    else toast(`${res.createdCount} ${emailMode?'recorded. See email delivery status above.':'sent.'}`);
+    if(pdfMode&&state.token===context.token)acceptPdfAdd(res,request.workflow);
+    if(res.errorCount)toast(`${res.createdCount} created; ${res.errorCount} require attention.`+(pdfMode?' Only recorded passes were added to the PDF.':''),true);
+    else toast(`${res.createdCount} ${pdfMode?'added to PDF.':emailMode?'recorded. See email delivery status above.':'sent.'}`);
     if(state.busEpoch===context.epoch&&state.lane===context.lane&&state.token===context.token)resetAfterSend();
   }catch(err){
     if(usePdfEmail()&&state.token===context.token)showPdfEmailOutcome();
@@ -383,5 +388,5 @@ async function submitLane(request){
 }
 function resetAfterSend(){invalidateStudentLookup();const lane=state.lane,wasBulk=state.bulk;state.student=null;state.studentDetails=null;state.basket=[];state.detentionAvailability=null;state.requestDeliveryMode='AUTO';state.requestDeliveryPeriod='';state.requestWhen='';state.detentionDate='';state.classChoices={};state.bulk=wasBulk;if(lane==='PASS')renderPass();if(lane==='RQST')renderRequest();if(lane==='DET')renderDetention(false);if(lane==='LUNCH_DET')renderDetention(true);if(lane==='BUS')renderBus()}
 
-function usePdfEmail(){return (['EMAIL','BOTH'].includes(state.outputMode)||selectedLanePrinterKey()==='EMAIL_PDF')&&Boolean(state.pdfEmail&&state.pdfEmail.enabled)}
+function usePdfEmail(){return !usePdfDownload()&&(['EMAIL','BOTH'].includes(state.outputMode)||selectedLanePrinterKey()==='EMAIL_PDF')&&Boolean(state.pdfEmail&&state.pdfEmail.enabled)}
 

@@ -23,6 +23,10 @@ jobs:
           node --check sw.js
           node --check js/app-core.js
           node --check js/app-email.js
+          node --check js/app-pdf-batch.js
+          node --check js/pass-pdf-templates.js
+          cp apps-script/BatchOutputs.gs /tmp/BatchOutputs.js
+          node --check /tmp/BatchOutputs.js
           node --check js/app-pass-request.js
           node --check js/app-detention-settings.js
           node --check js/app-camera-utils.js
@@ -45,6 +49,8 @@ jobs:
           node tests/pdf-email.test.cjs
           node --test tests/staff-signin.test.cjs tests/output-selection.test.cjs
           node --test tests/user-preferences.test.cjs
+          node --test tests/batch-outputs.test.cjs
+          node tests/period-detentions.test.cjs
           node --test tests/printhub-payload.test.mjs tests/printer-routes.test.mjs
 
       - name: Validate manifest and referenced static files

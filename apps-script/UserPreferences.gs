@@ -30,11 +30,18 @@ function parsePrinterPreferences_(value) {
 
 function userPrinterPreferences_(username) {
   const target = printerPreferenceRow_(username);
-  return parsePrinterPreferences_(target.sheet.getRange(target.row,9).getDisplayValue());
+  const result = parsePrinterPreferences_(target.sheet.getRange(target.row,9).getDisplayValue());
+  if (typeof outputPreferences_ === 'function') {
+    result.outputPreferences = outputPreferences_(username);
+    const cfg = readHelperConfig_();
+    if (!result.outputPreferences.busExplicit && result.workflows.BUS === result.defaultPrinterKey && cfg.printers.some(p=>p.key==='CAFE_TARDY')) result.workflows.BUS = 'CAFE_TARDY';
+  }
+  return result;
 }
 
 function validatePreferencePrinter_(key,cfg) {
   const value = String(key || '').trim();
+  if (['DL_PDF_HALF','DL_PDF_QUARTER'].includes(value)) return value;
   if (value === 'EMAIL_PDF' && typeof pdfEmailEnabled_ === 'function' && pdfEmailEnabled_()) return value;
   if (!value || value.includes('|') || !cfg.printers.some(p=>p.key===value)) {
     throw new Error('Choose a configured printer.');
@@ -59,13 +66,18 @@ function savePrinterPreference_(token,workflow,printerKey) {
       if (slot !== 0) throw new Error('Choose your default printer first.');
       // First-time setup initializes all workflows exactly once.
       for (let i=0;i<6;i++) parts[i]=parts[i] || key;
+      if (readHelperConfig_().printers.some(p=>p.key==='CAFE_TARDY')) parts[5]='CAFE_TARDY';
     } else {
       while (parts.length < 6) parts.push('');
       parts[slot] = key;
     }
     const value = parts.join('|');
     cell.setValue(value);
-    return {ok:true, printerPreferences:parsePrinterPreferences_(value)};
+    if (slot === 5 && typeof outputPreferences_ === 'function') {
+      const prefs = outputPreferences_(session.username);prefs.busExplicit=true;
+      PropertiesService.getScriptProperties().setProperty('PK_OUTPUT_PREF_' + normalizeUsername_(session.username),JSON.stringify(prefs));
+    }
+    return {ok:true, printerPreferences:userPrinterPreferences_(session.username)};
   } finally { lock.releaseLock(); }
 }
 
@@ -73,8 +85,9 @@ function savePrinterPreference_(token,workflow,printerKey) {
 function sessionForPrinterRequest_(session,request,cfg) {
   if (!request || !Object.prototype.hasOwnProperty.call(request,'printerKey')) return session;
   const key = validatePreferencePrinter_(request.printerKey,cfg);
-  if (key === 'EMAIL_PDF' && request.includePhysicalPrint === true) throw new Error('Choose a physical printer for printing.');
-  return Object.assign({},session,{printerKey:key === 'EMAIL_PDF' ? '' : key});
+  const virtual = key === 'EMAIL_PDF' || ['DL_PDF_HALF','DL_PDF_QUARTER'].includes(key);
+  if (virtual && request.includePhysicalPrint === true) throw new Error('Choose a physical printer for printing.');
+  return Object.assign({},session,{printerKey:virtual ? '' : key});
 }
 
 function helpOutPassTransaction_(tx,data) {

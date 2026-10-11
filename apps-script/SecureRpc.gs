@@ -29,7 +29,7 @@ function staffRpc(fn, args) {
     return startEmailSession_(adult.username, a[1], 'STAFF', requireCcsdStaffEmail_());
   }
 
-  if (method === 'savePrinterPreference') {
+  if (['savePrinterPreference','saveOutputPreference','addPdfWorkflow','getPdfBatch','getTodaysDetentions','printTodaysDetentions'].includes(method)) {
     const session = requireSession_(a[0]);
     if (session.username !== adult.username) throw new Error('Printer preferences must use your own authenticated session.');
   }
@@ -89,6 +89,11 @@ function dispatchPassKioskRpc_(fn, args) {
     case 'signOut': return signOut_(...a);
     case 'changePrinter': return changePrinter_(...a);
     case 'savePrinterPreference': return savePrinterPreference_(...a);
+    case 'saveOutputPreference': return saveOutputPreference_(...a);
+    case 'addPdfWorkflow': return addPdfWorkflow_(...a);
+    case 'getPdfBatch': return getPdfBatch_(...a);
+    case 'getTodaysDetentions': return getTodaysDetentions_(...a);
+    case 'printTodaysDetentions': return printTodaysDetentions_(...a);
     case 'getBootstrapData': {
       const result = getBootstrapData_(...a);
       if (typeof getPdfEmailConfig_ === 'function') result.pdfEmail = getPdfEmailConfig_(a[0]);

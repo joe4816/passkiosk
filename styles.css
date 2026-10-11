@@ -147,3 +147,7 @@ button:focus-visible, .date-option:focus-visible { outline:3px solid var(--purpl
 .form-actions .primary{min-height:42px}
 .field[readonly]{background:#f4f1f8;color:#40364e}
 @media(max-width:560px){.form-actions .primary{width:100%}.form-action-label{min-width:130px}}
+.pdf-ready{min-width:44px;min-height:44px}
+.pdf-batch-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #ddd}
+#pdfBatchReview,#pdfDownloadResult{margin-top:12px}
+#filingButton{margin:12px 0;display:block}

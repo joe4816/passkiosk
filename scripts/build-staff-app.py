@@ -31,6 +31,7 @@ def build():
     html = html.replace('src="assets/', 'src="'+PUBLIC+'assets/')
     html = html.replace("url('assets/", "url('"+PUBLIC+'assets/')
     html = html.replace('url("assets/', 'url("'+PUBLIC+'assets/')
+    html = re.sub(r'(?m)^[ \t]+$', '', html)
     (ROOT/'apps-script/StaffBridge.html').write_text(html)
     return html
 

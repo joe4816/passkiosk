@@ -59,9 +59,27 @@ setInterval(()=>{
 function detentionExtrasHtml(lane){
   const v=state.laneValues[lane];
   if(v.pickupDestination===undefined)v.pickupDestination=state.session.defaultLocation||'';
-  return `<div class="detention-extras"><label class="output-check"><input id="detPickupRequest" type="checkbox" ${v.createPickupRequest?'checked':''} onchange="toggleDetentionPickup(this.checked)"><span>Also create a Request for Student</span></label><div id="detPickupDestinationRow" class="form-row ${v.createPickupRequest?'':'hidden'}"><label for="detPickupDestination">Send student to <span class="required-star">*</span></label><input id="detPickupDestination" class="field" value="${attr(v.pickupDestination)}" oninput="state.laneValues[state.lane].pickupDestination=this.value"><div class="small muted">Deliver to each student’s P6 class · send 10 minutes before the final bell · pick up detention notice.</div></div><label class="output-check"><input id="detBothBack" type="checkbox" ${v.detentionOffice==='BACK'?'checked':''} onchange="selectDetentionOffice('BACK',this.checked)"><span>Print to both Back Office printers</span></label><label class="output-check"><input id="detBothAP" type="checkbox" ${v.detentionOffice==='AP'?'checked':''} onchange="selectDetentionOffice('AP',this.checked)"><span>Print to both AP Office printers</span></label><div id="detOutputSummary" class="small muted" aria-live="polite">${detentionOutputSummary(v)}</div></div>`;
+  return `<div class="detention-extras"><label class="output-check"><input id="detPickupRequest" type="checkbox" ${v.createPickupRequest?'checked':''} onchange="toggleDetentionPickup(this.checked)"><span>Also create a Request for Student</span></label><div id="detPickupDestinationRow" class="form-row ${v.createPickupRequest?'':'hidden'}"><label for="detPickupDestination">Send student to <span class="required-star">*</span></label><input id="detPickupDestination" class="field" value="${attr(v.pickupDestination)}" oninput="state.laneValues[state.lane].pickupDestination=this.value"><div class="small muted">Deliver to each student’s P6 class · send 10 minutes before the final bell · pick up detention notice.</div></div><label class="output-check"><input id="detPrintDuplicate" type="checkbox" ${v.duplicate?.enabled?'checked':''} onchange="togglePrintDuplicate(this.checked)"><span>Print duplicate</span></label><div id="detOutputSummary" class="small muted" aria-live="polite">${detentionOutputSummary(v)}</div></div>`;
 }
-function detentionOutputSummary(v){return v.detentionOffice?'Detention: receipt for student + copier for filing. '+(v.createPickupRequest?'Request for Student: copier only.':''):'Uses your selected output destination.'}
+function detentionOutputSummary(v){return v.duplicate?.enabled?(v.duplicate.pair?'Detention: receipt for student + copier for filing. '+(v.createPickupRequest?'Request for Student: copier only.':''):'Select a Printer Set before sending.'):'Uses your selected output destination.'}
 function toggleDetentionPickup(checked){const v=state.laneValues[state.lane];v.createPickupRequest=checked;document.getElementById('detPickupDestinationRow').classList.toggle('hidden',!checked);document.getElementById('detOutputSummary').textContent=detentionOutputSummary(v);if(checked)document.getElementById('detPickupDestination').focus()}
-function selectDetentionOffice(office,checked){const v=state.laneValues[state.lane];v.detentionOffice=checked?office:'';document.getElementById('detBothBack').checked=v.detentionOffice==='BACK';document.getElementById('detBothAP').checked=v.detentionOffice==='AP';document.getElementById('detOutputSummary').textContent=detentionOutputSummary(v)}
-function detentionExtraSubmission(){const v=state.laneValues[state.lane];return {createPickupRequest:Boolean(v.createPickupRequest),pickupDestination:v.pickupDestination||state.session.defaultLocation||'',detentionOffice:v.detentionOffice||''}}
+function duplicateChoiceForPrinter(key){return ['AP_COPIER','AP_TARDY'].includes(key)?'AP':['BACK_OFFICE','RECEIPT2'].includes(key)?'BACK':''}
+function togglePrintDuplicate(enabled){
+  const lane=state.lane,v=state.laneValues[lane];
+  if(state.submitting||state.printerPreferenceBusy?.[lane]){document.getElementById('detPrintDuplicate').checked=Boolean(v.duplicate?.enabled);return;}
+  const previous=enabled?v.printerKey:v.duplicate.previousPrinterKey;
+  return saveDuplicateChoice(lane,{enabled,pair:enabled?duplicateChoiceForPrinter(previous):v.duplicate?.pair||'',previousPrinterKey:previous});
+}
+async function saveDuplicateChoice(lane,choice){
+  const token=state.token;state.printerPreferenceBusy||={};state.printerPreferenceBusy[lane]=true;
+  const check=document.getElementById('detPrintDuplicate');if(check)check.disabled=true;refreshFormActions(lane);
+  try{const result=await server('saveOutputPreference',token,lane,choice);if(state.token!==token)return;
+    if(!result?.ok||!result.outputPreferences?.detention?.[lane])throw new Error('Duplicate preference was not confirmed.');
+    state.outputPreferences=result.outputPreferences;state.laneValues[lane].duplicate=result.outputPreferences.detention[lane];
+    if(!choice.enabled)state.laneValues[lane].printerKey=choice.previousPrinterKey;
+    if(result.printerPreferences)state.printerPreferences=result.printerPreferences;
+    syncLanePrinter();
+  }catch(err){if(state.token===token)toast('Duplicate preference was not saved. '+err.message,true)}
+  finally{if(state.token===token){state.printerPreferenceBusy[lane]=false;if(check?.isConnected){check.disabled=false;check.checked=Boolean(state.laneValues[lane].duplicate?.enabled)}refreshFormActions(lane);const summary=document.getElementById('detOutputSummary');if(summary)summary.textContent=detentionOutputSummary(state.laneValues[lane])}}
+}
+function detentionExtraSubmission(){const v=state.laneValues[state.lane];return {createPickupRequest:Boolean(v.createPickupRequest),pickupDestination:v.pickupDestination||state.session.defaultLocation||'',printDuplicate:Boolean(v.duplicate?.enabled),detentionOffice:v.duplicate?.enabled?v.duplicate.pair:''}}

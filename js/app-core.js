@@ -1,4 +1,4 @@
-const PK_BUILD='0.3.21-help-printers';
+const PK_BUILD='0.3.22-pdf-batches';
 const outputSelection={printerKey:'',email:false,busy:false};
 let staffSignInUrl='', staffSignInBusy=false;
 const state={front:null,identified:null,authMode:null,token:null,bootstrap:null,session:null,lane:null,deviceId:null,outputMode:'PRINT',pdfEmail:null,bulk:false,student:null,studentDetails:null,studentEpoch:0,studentLoading:false,studentLookupError:'',detentionEpoch:0,detentionLoading:false,basket:[],laneValues:{},currentPrinter:null,recentJobs:[],pendingReprint:null,detentionAvailability:null,requestDeliveryMode:'AUTO',requestDeliveryPeriod:'',requestWhen:'',detentionDate:'',submitting:false,busInfo:null,busOverride:null,busResetTimer:null,busCountdownTimer:null,busBusy:false,busEpoch:0,busWritePending:false,camera:{devices:[],selectedDeviceId:'',opening:false,requestId:0,stream:null,raf:null,lastCode:'',lastAt:0,lastSeenAt:0}};
@@ -72,10 +72,18 @@ async function restorePrinterChoice(allowChangeUser){
 }
 
 function selectedLanePrinterKey(lane=state.lane){
+  const duplicate=state.laneValues?.[lane]?.duplicate;
+  if(duplicate?.enabled)return duplicate.pair?'PAIR_'+duplicate.pair:'';
   return state.laneValues?.[lane]?.printerKey||state.printerPreferences?.defaultPrinterKey||state.currentPrinter?.key||'';
 }
+function usePdfDownload(lane=state.lane){return ['DL_PDF_HALF','DL_PDF_QUARTER'].includes(selectedLanePrinterKey(lane))}
 function printerForKey(key){
   if(key==='EMAIL_PDF')return {key,friendlyName:'PDF email only'};
+  if(key==='DL_PDF_HALF'||key==='DL_PDF_QUARTER')return {key,friendlyName:key==='DL_PDF_HALF'?'DL PDF ½ Sheet':'DL PDF ¼ Sheet'};
+  if(key==='PAIR_AP'||key==='PAIR_BACK'){
+    const keys=key==='PAIR_AP'?['AP_COPIER','AP_TARDY']:['BACK_OFFICE','RECEIPT2'];
+    return keys.every(k=>(state.bootstrap?.printers||[]).some(p=>p.key===k))?{key,friendlyName:key==='PAIR_AP'?'AP Office Copier & Receipt':'Back Office Copier & Receipt'}:null;
+  }
   return (state.bootstrap?.printers||[]).find(p=>p.key===key)||null;
 }
 function syncLanePrinter(){
@@ -92,13 +100,21 @@ function adultDisplayHtml(lane,id){
   return '<input id="'+id+'" class="field" value="'+attr(helpAdult(lane).displayName)+'" readonly aria-readonly="true">';
 }
 function formActionsHtml(lane,action,disabled=false){
+  state.formActions||={};state.formActions[lane]={action,disabled};
   const busy=Boolean(state.printerPreferenceBusy?.[lane]);
   const key=selectedLanePrinterKey(lane),printers=state.bootstrap?.printers||[];
-  let options=printers.map(p=>'<option value="'+attr(p.key)+'" '+(p.key===key?'selected':'')+'>'+esc(p.friendlyName)+'</option>').join('');
-  if(state.pdfEmail?.enabled)options+='<option value="EMAIL_PDF" '+(key==='EMAIL_PDF'?'selected':'')+'>PDF email only</option>';
-  if(!printerForKey(key))options='<option value="'+attr(key)+'" selected disabled>'+esc(key?'Unavailable: '+key:'Choose a printer')+'</option>'+options;
-  return '<div class="submit-row form-actions"><button class="primary" onclick="'+action+'" '+(disabled||busy?'disabled':'')+'>Send</button><label class="form-action-label">Help out: <select class="field" id="helpOut" onchange="setHelpOut(\''+lane+'\',this.value)">'+adultOptions(helpAdult(lane).username)+'</select></label><label class="form-action-label">Select printer <select class="field" id="lanePrinter" onchange="setLanePrinter(\''+lane+'\',this.value)" '+(busy?'disabled':'')+'>'+options+'</select></label><span id="printerSaveStatus" class="small muted" role="status">'+(busy?'Saving printer…':'')+'</span></div>';
+  const duplicate=state.laneValues[lane].duplicate?.enabled;
+  let options=duplicate?['PAIR_AP','PAIR_BACK'].filter(printerForKey).map(k=>'<option value="'+k+'" '+(k===key?'selected':'')+'>'+printerForKey(k).friendlyName+'</option>').join(''):printers.map(p=>'<option value="'+attr(p.key)+'" '+(p.key===key?'selected':'')+'>'+esc(p.friendlyName)+'</option>').join('');
+  if(!duplicate){
+    options+='<option value="DL_PDF_HALF" '+(key==='DL_PDF_HALF'?'selected':'')+'>DL PDF ½ Sheet</option><option value="DL_PDF_QUARTER" '+(key==='DL_PDF_QUARTER'?'selected':'')+'>DL PDF ¼ Sheet</option>';
+    if(state.pdfEmail?.enabled)options+='<option value="EMAIL_PDF" '+(key==='EMAIL_PDF'?'selected':'')+'>PDF email only</option>';
+  }
+  if(duplicate&&!key)options='<option value="" selected>Select a Printer Set</option>'+options;
+  if(!printerForKey(key)&&!(duplicate&&!key))options='<option value="'+attr(key)+'" selected disabled>'+esc(key?'Unavailable: '+key:'Choose a printer')+'</option>'+options;
+  const pdf=usePdfDownload(lane);
+  return '<div class="form-actions-panel"><div class="submit-row form-actions"><button class="primary" '+(pdf?'title="Add to PDF" aria-label="Add to PDF"':'')+' onclick="'+action+'" '+(disabled||busy||!printerForKey(key)?'disabled':'')+'>'+(pdf?'+':'Send')+'</button>'+(pdf?'<button type="button" class="secondary pdf-ready" title="Ready to download" aria-label="Ready to download" onclick="downloadPdfBatch()" '+(busy?'disabled':'')+'>▶️</button>':'')+'<label class="form-action-label">Help out: <select class="field" id="helpOut" onchange="setHelpOut(\''+lane+'\',this.value)">'+adultOptions(helpAdult(lane).username)+'</select></label><label class="form-action-label">Select printer <select class="field" id="lanePrinter" onchange="setLanePrinter(\''+lane+'\',this.value)" '+(busy?'disabled':'')+'>'+options+'</select></label><span id="printerSaveStatus" class="small muted" role="status">'+(busy?'Saving printer…':'')+'</span></div>'+(pdf&&typeof pdfBatchStatusHtml==='function'?pdfBatchStatusHtml():'')+'<div id="pdfBatchReview" class="hidden"></div><div id="pdfDownloadResult" class="hidden"></div></div>';
 }
+function refreshFormActions(lane){const box=document.querySelector('#workspace .form-actions-panel'),config=state.formActions?.[lane];if(box&&config)box.outerHTML=formActionsHtml(lane,config.action,config.disabled)}
 function setHelpOut(lane,username){
   if(state.submitting||state.busWritePending)return;
   const adult=(state.bootstrap.adults||[]).find(a=>a.username===username);
@@ -115,6 +131,10 @@ function setHelpOut(lane,username){
 }
 async function setLanePrinter(lane,key){
   if(state.submitting||state.busWritePending||state.printerPreferenceBusy?.[lane])return;
+  if(state.laneValues[lane].duplicate?.enabled){
+    if(!['PAIR_AP','PAIR_BACK'].includes(key))return;
+    return saveDuplicateChoice(lane,{...state.laneValues[lane].duplicate,pair:key.slice(5)});
+  }
   const token=state.token;
   state.printerPreferenceBusy||={};state.printerPreferenceBusy[lane]=true;
   const selector=document.getElementById('lanePrinter'),status=document.getElementById('printerSaveStatus');
@@ -129,18 +149,22 @@ async function setLanePrinter(lane,key){
   }catch(err){
     if(state.token===token){toast('Printer was not saved. '+err.message,true);if(selector?.isConnected)selector.value=selectedLanePrinterKey(lane);if(status?.isConnected)status.textContent='Printer not saved';}
   }finally{
-    if(state.token===token){state.printerPreferenceBusy[lane]=false;if(state.lane===lane){const current=document.getElementById('lanePrinter');if(current)current.disabled=false;document.querySelectorAll('#workspace .submit-row .primary').forEach(b=>{b.disabled=lane==='BUS'&&!activityBusEnabled()});}if(selector?.isConnected)selector.disabled=false;}
+    if(state.token===token){state.printerPreferenceBusy[lane]=false;if(state.lane===lane){refreshFormActions(lane);}if(selector?.isConnected)selector.disabled=false;}
   }
 }
 function withLaneChoices(request,lane=request.workflow||state.lane){
   if(state.printerPreferenceBusy?.[lane])throw new Error('Wait for your printer choice to finish saving.');
+  if(usePdfDownload(lane)&&(state.pdfBatch?.length||0)+(request.studentIds?.length||1)*(request.data?.createPickupRequest?2:1)>400)throw new Error('The PDF batch holds at most 400 passes. Download and remove items before adding more.');
   const key=selectedLanePrinterKey(lane);
+  if(state.laneValues[lane].duplicate?.enabled&&!state.laneValues[lane].duplicate.pair)throw new Error('Select a Printer Set before sending.');
   if(!printerForKey(key))throw new Error('Choose an available printer for this form.');
   const adult=helpAdult(lane);
   const data={...(request.data||{})};
   if(lane==='PASS'||lane==='RQST')data.requestedByUsername=adult.username;
   if(lane==='DET'||lane==='LUNCH_DET')data.issuedByUsername=adult.username;
-  return {...request,printerKey:key,data,...(lane==='BUS'?{approvedByUsername:adult.username}:{})};
+  const duplicate=state.laneValues[lane].duplicate;
+  if(duplicate?.enabled){data.printDuplicate=true;data.detentionOffice=duplicate.pair;}
+  return {...request,printerKey:key==='PAIR_AP'?'AP_COPIER':key==='PAIR_BACK'?'BACK_OFFICE':key,data,...(lane==='BUS'?{approvedByUsername:adult.username}:{})};
 }
 
 function showKioskIdentityPrompt(){
@@ -237,8 +261,11 @@ function initializeLaneValues(){
   const me=state.session.username,loc=state.session.defaultLocation||'';
   state.printerPreferences=state.bootstrap.printerPreferences||{defaultPrinterKey:state.currentPrinter?.key||'',workflows:{}};
   state.printerPreferenceBusy={};
+  state.outputPreferences=state.printerPreferences.outputPreferences||{detention:{},filingPrinterKey:'AP_COPIER'};
   state.laneValues={PASS:{from:loc},RQST:{destination:loc,requestedByUsername:me},DET:{issuedByUsername:me,reportTo:state.bootstrap.detention.afterSchool.defaultLocation||'',pickupDestination:loc},LUNCH_DET:{issuedByUsername:me,reportTo:state.bootstrap.detention.lunch.defaultLocation||'',pickupDestination:loc},BUS:{approvedByUsername:me,location:loc}};
   for(const lane of ['PASS','RQST','DET','LUNCH_DET','BUS'])Object.assign(state.laneValues[lane],{helpUsername:me,printerKey:state.printerPreferences.workflows?.[lane]||state.printerPreferences.defaultPrinterKey});
+  for(const lane of ['DET','LUNCH_DET']){const choice=state.outputPreferences.detention?.[lane];state.laneValues[lane].duplicate=choice||{enabled:false,pair:'',previousPrinterKey:state.laneValues[lane].printerKey};}
+  if(typeof loadPdfBatch==='function')loadPdfBatch();
 }
 function updateContext(){const a=(state.bootstrap.adults||[]).find(x=>x.username===state.session.username);document.getElementById('contextUser').textContent=a?a.displayName:state.session.displayName;const email='PDF → '+(state.pdfEmail?.recipient||'my email');document.getElementById('contextPrinter').textContent=state.currentPrinter?.key==='EMAIL_PDF'?email:(state.currentPrinter?.friendlyName||'Choose a printer')+(usePdfEmail()?' + '+email:'')}
 

@@ -67,6 +67,7 @@ function buildPeriodPassTx_(tx, student, data, cfg) {
 
 function detentionOfficePair_(data, cfg) {
   const office = String(data.detentionOffice || '');
+  if (data.printDuplicate === true && !office) throw processingError_('MISSING_OFFICE_PAIR','Select a Printer Set before sending.');
   if (!office) return null;
   const keys = office === 'AP' ? ['AP_COPIER','AP_TARDY'] : office === 'BACK' ? ['BACK_OFFICE','RECEIPT2'] : null;
   if (!keys) throw processingError_('INVALID_OFFICE_PAIR', 'Choose either AP Office or Back Office, not both.');

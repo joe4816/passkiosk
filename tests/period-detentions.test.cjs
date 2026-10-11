@@ -23,9 +23,10 @@ assert.throws(()=>server.prepareWorkflowBundle_('X',at(600),session,'DET',studen
 const nodes={detBothBack:{},detBothAP:{},detOutputSummary:{},detPickupDestinationRow:{classList:{toggle(){}}},detPickupDestination:{focus(){}}};
 const client={state:{lane:'DET',session:{defaultLocation:'Office'},laneValues:{DET:{}}},document:{getElementById:id=>nodes[id]},setInterval:()=>{},Date,esc:s=>s,attr:s=>s};
 vm.createContext(client);vm.runInContext(read('js/app-class-routing.js'),client);
-client.selectDetentionOffice('BACK',true);assert.equal(nodes.detBothBack.checked,true);assert.equal(nodes.detBothAP.checked,false);
-client.selectDetentionOffice('AP',true);assert.equal(nodes.detBothBack.checked,false);assert.equal(nodes.detBothAP.checked,true);
-client.selectDetentionOffice('AP',false);assert.equal(nodes.detBothBack.checked,false);assert.equal(nodes.detBothAP.checked,false);
+assert.equal(client.duplicateChoiceForPrinter('AP_TARDY'),'AP');
+assert.equal(client.duplicateChoiceForPrinter('BACK_OFFICE'),'BACK');
+assert.equal(client.duplicateChoiceForPrinter('RECEIPT1'),'');
+assert.throws(()=>server.detentionOfficePair_({printDuplicate:true},cfg),/Select a Printer Set/);
 client.toggleDetentionPickup(true);assert.equal(client.state.laneValues.DET.createPickupRequest,true);
 const routing=server.resolvePeriodRouting_(student,cfg,at(530));routing.receivedAt=100000;
 assert.equal(client.timedDefaultPeriod(routing,100000),'P1');assert.equal(client.timedDefaultPeriod(routing,160000),'P2');

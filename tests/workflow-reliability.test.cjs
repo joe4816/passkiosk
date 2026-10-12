@@ -41,8 +41,8 @@ async function main(){
   {
     const {c,notices,resets}=fixture();c.server=async()=>({ok:true,createdCount:0,errorCount:1,created:[],errors:[{studentId:'1',message:'Missing destination'}]});await c.submitLane(request());assert.equal(resets(),1);assert(notices.some(x=>x[0].includes('require attention')));
   }
-  // Explicit Excused is enabled in the deployed app; Activity Bus data remains staged.
-  const config={window:{}};vm.createContext(config);vm.runInContext(fs.readFileSync(path.join(root,'config.js'),'utf8'),config);assert.equal(config.window.PASSKIOSK_CONFIG.features.explicitExcused,true);assert.equal(config.window.PASSKIOSK_CONFIG.features.activityBusData,false);
+  // Explicit Excused and verified Activity Bus data are enabled in the deployed app.
+  const config={window:{}};vm.createContext(config);vm.runInContext(fs.readFileSync(path.join(root,'config.js'),'utf8'),config);assert.equal(config.window.PASSKIOSK_CONFIG.features.explicitExcused,true);assert.equal(config.window.PASSKIOSK_CONFIG.features.activityBusData,true);
   console.log('Workflow recovery: double-tap guard, immutable basket while sending, stale lane ownership, uncertain/malformed replies, partial outcomes and configured feature gates passed.');
 }
 main().catch(err=>{console.error(err);process.exitCode=1});

@@ -1,10 +1,10 @@
 window.PASSKIOSK_CONFIG = Object.freeze({
   appName: 'PassKiosk',
-  version: '0.3.22-pdf-batches',
+  version: '0.3.23-activity-bus',
   githubOrigin: 'https://joe4816.github.io',
   features: Object.freeze({
     explicitExcused: true,
-    activityBusData: false
+    activityBusData: true
   }),
   // Filled after the secure Apps Script bridge deployment is created.
   // Managed ChromeOS configuration is preferred for kiosk mode.

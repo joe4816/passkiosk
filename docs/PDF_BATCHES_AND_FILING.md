@@ -11,7 +11,7 @@ Release 0.3.22. Existing Friday detention restrictions, Help out identity and op
 - The batch is stored in browser local storage under the actual operator username, capped at 400 notices. Other operators cannot fetch those notices. New submissions are capped at 100 students per Add.
 - Signatures are obtained through authenticated RPC, rasterized locally and embedded in the PDF. Blank signatures remain blank; missing named files block download. No pass data or signatures are sent to an external rendering service.
 - Overlong content raises an error instead of clipping. Quarter-sheet users can choose half-sheet for more room.
-- Existing Activity Bus integration remains staged/disabled. Its future PDF controls use the same batching path.
+- Activity Bus is enabled in release 0.3.23. PDF controls use the same batching path, and physical destinations queue saved BUS transactions.
 
 ## Print duplicate
 

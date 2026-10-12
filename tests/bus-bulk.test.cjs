@@ -13,6 +13,15 @@ vm.createContext(c);vm.runInContext(fs.readFileSync(root+'apps-script/UserPrefer
 const call=r=>c.submitBusWorkflow_('TOKEN',{deviceId:'D',approvedByUsername:'approver',...r});
 prior=[{'Workflow':'BUS','Status':'CREATED','Student ID':'4','Created At':new Date(),'Transaction ID':'ORIGINAL','Bus Scan Type':'NORMAL'},{'Workflow':'BUS','Status':'VOID','Student ID':'5','Created At':new Date(),'Transaction ID':'VOID'}];
 const before=JSON.stringify(prior[0]);
+const lockedRead=c.readSheetRecords_;
+c.readSheetRecords_=()=>prior;
+assert.equal(c.getBusInfoForSession_('TOKEN','1').assignmentCount,1);
+assert.equal(c.getBusInfoForSession_('TOKEN','2').assignmentCount,2);
+assert.equal(c.getBusInfoForSession_('TOKEN','3').hasBusInfo,false);
+assert.equal(c.getBusInfoForSession_('TOKEN','4').alreadyScannedToday,true);
+assert.equal(c.getBusInfoForSession_('TOKEN','5').alreadyScannedToday,false);
+assert.equal(writes.length,0);
+c.readSheetRecords_=lockedRead;
 let res=call({bulk:true,studentIds:['1','2','3','4','5','99','1'],allowDuplicate:true});
 assert.equal(res.createdCount,3);assert.equal(res.errorCount,3);assert.equal(reads,1);assert.equal(res.printingQueued,false);assert.equal(writes.length,2);assert.equal(JSON.stringify(prior[0]),before);
 const rows=writes.find(x=>x.name==='Transactions').rows;
@@ -21,6 +30,22 @@ writes=[];res=call({bulk:true,studentIds:['1','3']});assert.equal(res.createdCou
 res=call({studentId:'4'});assert.equal(res.code,'ALREADY_SCANNED_TODAY');writes=[];res=call({studentId:'4',allowDuplicate:true});assert.equal(res.scanType,'DUPLICATE');assert.equal(res.duplicateOfTransactionId,'ORIGINAL');assert.equal(JSON.stringify(prior[0]),before);assert.equal(writes.length,1);
 assert.throws(()=>call({bulk:true,studentIds:[]}),/Choose/);assert.throws(()=>call({bulk:true,studentIds:['1'],approvedByUsername:'inactive'}),/active adult/);assert.throws(()=>call({deviceId:'WRONG',bulk:true,studentIds:['1']}),/Device mismatch/);assert.equal(locked,false);
 const saved=data[0];data[0]=['StudentId'];writes=[];assert.throws(()=>call({bulk:true,studentIds:['1','2']}),/missing required header/);assert.equal(writes.length,0);assert.equal(locked,false);data[0]=saved;
+// Physical BUS output queues the same saved snapshot; PDF-only output does not.
+prior=[];writes=[];
+const savedAppend=c.appendMappedRows_,savedSessionFor=c.sessionForPrinterRequest_;
+c.sessionForPrinterRequest_=()=>({...session,printerKey:'CAFE_TARDY'});
+c.getPrinterForSession_=s=>({key:s.printerKey});
+c.makePrintJobRow_=(id,now,s,cfg,attempt,reprint,tx)=>({'Transaction ID':id,'Printer Key':s.printerKey,'Snapshot':tx});
+c.appendMappedRows_=(name,rows)=>{if(name==='Print_Jobs'){assert(locked);writes.push({name,rows});}else savedAppend(name,rows)};
+c.PK.PRINT_JOBS_SHEET='Print_Jobs';
+res=call({studentId:'1'});assert.equal(res.printingQueued,true);
+assert.equal(writes[1].rows[0]['Transaction ID'],res.transactionId);
+assert.equal(writes[1].rows[0]['Printer Key'],'CAFE_TARDY');
+prior=[];writes=[];res=call({bulk:true,studentIds:['1','2','3']});
+assert.equal(res.printingQueued,true);assert.equal(writes.find(x=>x.name==='Print_Jobs').rows.length,2);
+prior=[];writes=[];res=call({studentId:'1',includePhysicalPrint:false});
+assert.equal(res.printingQueued,false);assert(!writes.some(x=>x.name==='Print_Jobs'));
+c.appendMappedRows_=savedAppend;c.sessionForPrinterRequest_=savedSessionFor;
 console.log('Backend: mixed outcomes, batch deduplication, multiple assignments, current-student gate, identity, duplicate/VOID rules, single override, security and failure-before-write passed.');
 
 (async()=>{

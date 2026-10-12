@@ -2,9 +2,8 @@
  * PassKiosk Activity Bus integration.
  *
  * Add this file to the bound Apps Script project alongside Code.gs and
- * SecureRpc.gs. It intentionally does NOT create a Print_Jobs row. The Activity
- * Bus authorization can be recorded and audited while physical printing stays
- * parked as a separate integration step.
+ * SecureRpc.gs. Physical output queues the saved transaction for the selected
+ * printer; PDF-only output records the authorization without a print job.
  *
  * Source contract:
  *   Helper -> APP SOURCES -> Student Spreadsheet ID
@@ -47,7 +46,7 @@ function getBusInfoForSession_(token, studentId) {
   if (!student) throw new Error('Student could not be found in the current student source.');
 
   const cfg = readHelperConfig_();
-  const lookup = parseBusAssignmentRows_(busRows.rows[id] || [], busRows.headers);
+  const lookup = readBusAssignments_(id, cfg);
   const prior = findTodayBusTransactions_(id, cfg);
 
   return {
@@ -151,8 +150,10 @@ function submitBusWorkflow_(token, request) {
     const name = [student.firstName, student.lastName].filter(Boolean).join(' ');
 
     const tx = buildBusTransaction_(transactionId, now, session, student, approved, lookup, scanType, duplicateOf);
+    const jobs = busPrintJobs_([tx], now, session, request, cfg);
 
     appendMappedRows_(PK.TRANSACTIONS_SHEET, [tx]);
+    if (jobs.length) appendMappedRows_(PK.PRINT_JOBS_SHEET, jobs);
 
     return {
       ok: true,
@@ -165,7 +166,7 @@ function submitBusWorkflow_(token, request) {
       sped: lookup.sped,
       assignmentCount: lookup.assignments.length,
       assignments: lookup.assignments,
-      printingQueued: false
+      printingQueued: jobs.length > 0
     };
   } finally {
     lock.releaseLock();
@@ -231,7 +232,15 @@ function buildBusTransaction_(transactionId, now, session, student, approved, lo
   return tx;
 }
 
-/** Bulk follows the shared batch IDs/error schema, without any print jobs. */
+function busPrintJobs_(transactions, now, session, request, cfg) {
+  if (request.includePhysicalPrint === false || !session.printerKey) return [];
+  getPrinterForSession_(session, cfg);
+  return transactions.map(function(tx) {
+    return makePrintJobRow_(tx['Transaction ID'], now, session, cfg, 'ORIGINAL', '', tx);
+  });
+}
+
+/** Bulk follows the shared batch IDs/error schema and chosen output mode. */
 function submitBusBulkWorkflow_(session, request, cfg) {
   const rawIds = Array.isArray(request.studentIds) ? request.studentIds : [];
   const ids = Array.from(new Set(rawIds.map(normalizeStudentId_).filter(Boolean)));
@@ -275,7 +284,7 @@ function submitBusBulkWorkflow_(session, request, cfg) {
         message = 'Student could not be found in the current student source.';
       } else {
         // A source/config failure aborts the batch before any rows are written.
-        lookup = readBusAssignments_(id, cfg);
+        lookup = parseBusAssignmentRows_(busRows.rows[id] || [], busRows.headers);
         if (!lookup.assignments.length) {
           code = 'NO_BUS_INFO';
           message = 'NO BUS INFO ON FILE';
@@ -300,10 +309,12 @@ function submitBusBulkWorkflow_(session, request, cfg) {
         studentName: [student.firstName, student.lastName].filter(Boolean).join(' '),
         assignmentCount: lookup.assignments.length});
     });
+    const jobs = busPrintJobs_(transactions, now, session, request, cfg);
     if (transactions.length) appendMappedRows_(PK.TRANSACTIONS_SHEET, transactions);
     if (errorRows.length) appendMappedRows_(PK.ERRORS_SHEET, errorRows);
+    if (jobs.length) appendMappedRows_(PK.PRINT_JOBS_SHEET, jobs);
     return {ok: true, bulk: true, batchRoot: root, createdCount: created.length,
-      errorCount: errors.length, created: created, errors: errors, printingQueued: false};
+      errorCount: errors.length, created: created, errors: errors, printingQueued: jobs.length > 0};
   } finally {
     lock.releaseLock();
   }
@@ -489,8 +500,9 @@ function busHeaderIndex_(headers) {
 function testBusIntegration_() {
   const cfg = readHelperConfig_();
   const source = SpreadsheetApp.openById(cfg.sources.studentSpreadsheetId);
-  const sheet = source.getSheetByName(cfg.sources.busSheet);
-  if (!sheet) throw new Error('Bus sheet not found: ' + cfg.sources.busSheet);
+  const sheetName = String(cfg.sources.busSheet || 'Bus_Info').trim() || 'Bus_Info';
+  const sheet = source.getSheetByName(sheetName);
+  if (!sheet) throw new Error('Bus sheet not found: ' + sheetName);
 
   const lastRow = sheet.getLastRow();
   const lastColumn = sheet.getLastColumn();
@@ -580,7 +592,7 @@ function testBusIntegration_() {
 
   return {
     ok: true,
-    busSheet: cfg.sources.busSheet,
+    busSheet: sheetName,
     dataRows: dataRows,
     uniqueStudents: Object.keys(students).length,
     studentsWithMultipleAssignments: studentsWithMultipleAssignments,

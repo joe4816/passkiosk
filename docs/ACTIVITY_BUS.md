@@ -2,7 +2,7 @@
 
 ## Status
 
-The data contract is now defined and the GitHub client/backend integration code is staged.
+Activity Bus is enabled in release 0.3.23 after the live Bus_Info and transaction-header check passed.
 
 Physical printing is intentionally outside this workstream. Activity Bus can be enabled first for lookup, authorization, duplicate handling, and transaction audit.
 
@@ -97,7 +97,7 @@ Approved By defaults to the logged-in adult but may be changed to another active
 
 A successful normal scan creates one `BUS` transaction and then returns the lane to scanning.
 
-No Print_Jobs row is created by the staged bus integration. Printing is a separate later step.
+Physical destinations queue one Print_Jobs row per saved BUS transaction. PDF-only destinations record the transaction without a physical job.
 
 ## No transportation record
 
@@ -213,4 +213,5 @@ Printing remains disabled/unrelated during these tests.
 - Bulk response counts and student IDs must reconcile to the submitted basket before it is cleared. Invalid or incomplete responses retain the basket and display the uncertainty warning.
 - Automated synthetic-data regression checks: `node tests/bus-reliability.test.cjs` and `node tests/bus-bulk.test.cjs`. These are local/client checks, not a claim of live Apps Script deployment or physical printer testing.
 
-Activity Bus remains feature-gated off until the deployed backend passes its verification gate. Printing remains parked.
+Activation 2026-10-12: live source check passed (598 rows, 594 unique students, three with multiple assignments, no assignment-count mismatches). Corrected single-student lookup and enabled selected-printer output. Synthetic tests cover lookup, duplicate/VOID rules, bulk, selected printer and PDF-only behavior. Physical printer arrival requires an on-site check.
+

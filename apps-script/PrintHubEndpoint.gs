@@ -182,6 +182,13 @@ function printHubEndpointPoll_(body) {
     throw new Error('PrintHub endpoint is disabled.');
   }
 
+  // The separate yearbook test sheet is claimed only by the dedicated Letter alias.
+  const yearbookJob = ybLetterTestPollHook_(body);
+  if (yearbookJob) return {
+    ok:true,endpointId:PK_PRINTHUB.ENDPOINT_ID,
+    pollAfterMs:PK_PRINTHUB.POLL_AFTER_MS,jobs:[yearbookJob]
+  };
+
   assertPrintHubHeaders_();
 
   const maxJobs = Math.min(Math.max(Number(body && body.maxJobs || 1), 1), 5);
@@ -284,6 +291,10 @@ function printHubEndpointComplete_(body) {
 
   // Completion remains available even when new polling is disabled so an
   // already-submitted ChromeOS job can still close cleanly.
+  // Completion is still authenticated by requirePrintHubEndpoint_ above.
+  const yearbookCompletion = ybLetterTestCompleteHook_(body);
+  if (yearbookCompletion) return yearbookCompletion;
+
   assertPrintHubHeaders_();
 
   const printJobId = String(body && body.printJobId || '').trim();

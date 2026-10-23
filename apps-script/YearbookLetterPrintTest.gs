@@ -43,11 +43,11 @@ function runYearbookLetterPrintTest() {
 function getYearbookLetterPrintTestStatus() {
   const cfg=YB_LETTER_PRINT_TEST,rows=ybLetterQueueSheet_().getDataRange().getValues();
   for(let i=1;i<rows.length;i++)if(String(rows[i][0])===cfg.JOB_ID){
-    const result={jobId:cfg.JOB_ID,status:rows[i][2],claimedAt:rows[i][5],
+    const result={jobId:cfg.JOB_ID,armed:yearbookLetterPrintTestArmed_(),status:rows[i][2],claimedAt:rows[i][5],
       printInvokedAt:rows[i][6],completedAt:rows[i][7],detail:rows[i][8]};
     console.log(JSON.stringify(result));return result;
   }
-  return {jobId:cfg.JOB_ID,status:'NOT_QUEUED'};
+  return {jobId:cfg.JOB_ID,armed:yearbookLetterPrintTestArmed_(),status:'NOT_QUEUED'};
 }
 
 function yearbookLetterPrintTestArmed_() {

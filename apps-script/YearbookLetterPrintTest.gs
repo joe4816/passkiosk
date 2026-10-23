@@ -13,6 +13,7 @@ const YB_LETTER_PRINT_TEST = Object.freeze({
   ROUTE:'YEARBOOK_LETTER',
   PROFILE:'LETTER',
   RENDERER:'YEARBOOK_PDF_FILE',
+  ARMED_PROPERTY:'YEARBOOK_LETTER_TEST_ARMED',
   HEADERS:['Job ID','File ID','Status','Requested At','Claim ID',
            'Claimed At','Print Invoked At','Completed At','Detail']
 });
@@ -49,9 +50,38 @@ function getYearbookLetterPrintTestStatus() {
   return {jobId:cfg.JOB_ID,status:'NOT_QUEUED'};
 }
 
+function yearbookLetterPrintTestArmed_() {
+  return PropertiesService.getScriptProperties()
+    .getProperty(YB_LETTER_PRINT_TEST.ARMED_PROPERTY) === 'true';
+}
+
+// The yearbook job must not be claimed until a human explicitly arms it.
+// This independent safety switch does NOT disable any existing PrintHub route.
+function armYearbookLetterPrintTest() {
+  const cfg=YB_LETTER_PRINT_TEST;
+  const status=getYearbookLetterPrintTestStatus();
+  if(status.status !== 'QUEUED') {
+    throw new Error('Yearbook test must be QUEUED before arming: '+status.status);
+  }
+  PropertiesService.getScriptProperties().setProperty(cfg.ARMED_PROPERTY,'true');
+  const result={ok:true,armed:true,jobId:cfg.JOB_ID,status:'QUEUED'};
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function disarmYearbookLetterPrintTest() {
+  PropertiesService.getScriptProperties()
+    .setProperty(YB_LETTER_PRINT_TEST.ARMED_PROPERTY,'false');
+  const result={ok:true,armed:false,
+    note:'This prevents future claims; it cannot cancel a job already submitted to ChromeOS.'};
+  console.log(JSON.stringify(result));
+  return result;
+}
+
 // Must be invoked only AFTER authenticated printHubEndpointPoll_ enabled checks.
 function ybLetterTestPollHook_(body) {
   const cfg=YB_LETTER_PRINT_TEST;
+  if (!yearbookLetterPrintTestArmed_()) return null;
   if(!Array.isArray(body&&body.readyBindingKeys)||
     !body.readyBindingKeys.includes(cfg.ROUTE))return null;
   const lock=LockService.getScriptLock();lock.waitLock(20000);
@@ -59,6 +89,7 @@ function ybLetterTestPollHook_(body) {
     const sheet=ybLetterQueueSheet_(),rows=sheet.getDataRange().getValues();
     for(let i=1;i<rows.length;i++){
       if(String(rows[i][0])!==cfg.JOB_ID||String(rows[i][2])!=='QUEUED')continue;
+      if (!yearbookLetterPrintTestArmed_()) return null;
       const pdf=DriveApp.getFileById(cfg.PDF_FILE_ID).getBlob();
       const encoded=Utilities.base64Encode(pdf.getBytes());
       if(encoded.length>4000000)throw new Error('PDF exceeds bridge limit.');
@@ -90,7 +121,11 @@ function ybLetterTestCompleteHook_(body) {
     for(let i=1;i<rows.length;i++){
       if(String(rows[i][0])!==cfg.JOB_ID)continue;
       if(String(body.claimId||'')!==String(rows[i][4]||''))throw new Error('Incorrect claim ID.');
-      if(String(rows[i][2])==='PRINTED')return {ok:true,status:'PRINTED'};
+      const current=String(rows[i][2]||'').toUpperCase();
+      if(current===status)return {ok:true,idempotent:true,status};
+      if(current==='PRINTED'||current==='FAILED')return {ok:true,idempotent:true,status:current};
+      if(!['CLAIMED','PRINT_INVOKED'].includes(current))throw new Error('Job is not active: '+current);
+      if(status==='PRINT_INVOKED'&&current!=='CLAIMED')throw new Error('Cannot regress to PRINT_INVOKED');
       sheet.getRange(i+1,3).setValue(status);
       if(status==='PRINT_INVOKED')sheet.getRange(i+1,7).setValue(new Date());
       else sheet.getRange(i+1,8).setValue(new Date());
